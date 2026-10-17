@@ -1,0 +1,27 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f2f2f3;
+  --foreground: #111827;
+  --brand: #e8201c;
+  --brand-dark: #b3120f;
+  --ink: #111111;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-brand: var(--brand);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-grotesk), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Tahoma, "Noto Sans Arabic", Arial, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.cta { background: linear-gradient(90deg, #f21d1a, #b3120f); box-shadow: 0 10px 24px rgba(232, 32, 28, 0.28); }
+.cta:disabled { opacity: 0.45; box-shadow: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { scrollbar-width: none; }
