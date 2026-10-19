@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_1" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <style>
+      .cls-1 {
+        fill: #15191a;
+      }
+
+      .cls-1, .cls-2 {
+        fill-rule: evenodd;
+      }
+
+      .cls-2 {
+        fill: #e7262a;
+      }
+    </style>
+  </defs>
+  <polyline class="cls-1" points="95.73 162.08 129.77 162.14 186.81 51.7 40.46 51.43 28.8 74.01 141.11 74.22 95.73 162.08"/>
+  <polyline class="cls-1" points="97.08 95.57 63.05 95.51 6.01 205.95 170.87 206.25 182.53 183.67 51.7 183.43 97.08 95.57"/>
+  <polyline class="cls-1" points="239.32 72.74 250.13 51.81 216.15 51.75 205.33 72.67 239.32 72.74"/>
+  <polyline class="cls-1" points="216.35 117.23 227.11 96.38 193.11 96.32 182.33 117.17 216.35 117.23"/>
+  <polyline class="cls-2" points="170.11 140.81 159.06 162.19 193.09 162.25 204.13 140.87 170.11 140.81"/>
+</svg>
