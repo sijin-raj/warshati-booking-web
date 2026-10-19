@@ -112,6 +112,17 @@ export default function BookingWizard({ config }: { config: BookingConfig }) {
   const fields = config.form.fields;
   const show = (k: string) => fields[k]?.visible !== false;
   const req = (k: string, dflt = false) => fields[k]?.required ?? dflt;
+  const svcName = (s: { name: string; nameAr?: string | null }) => (locale === "ar" && s.nameAr ? s.nameAr : s.name);
+  // "09:00" → "9 AM" / "٩ ص"; minutes only when not on the hour ("9:30 AM").
+  const fmtClock = (hm: string) => {
+    const [h, m] = hm.split(":").map(Number);
+    const hour12 = h % 12 === 0 ? 12 : h % 12;
+    const mins = m ? `:${String(m).padStart(2, "0")}` : "";
+    const text = `${hour12}${mins}`;
+    const ampm = locale === "ar" ? (h >= 12 ? "م" : "ص") : h >= 12 ? "PM" : "AM";
+    const shown = locale === "ar" ? text.replace(/\d/g, (d) => "٠١٢٣٤٥٦٧٨٩"[Number(d)]) : text;
+    return `${shown} ${ampm}`;
+  };
   const fmtNum = (n: number | string) => Number(n).toLocaleString(locale === "ar" ? "ar-SA" : "en-US");
 
   const dates = useMemo(() => Array.from({ length: DAYS_AHEAD }, (_, i) => riyadhDate(i)), []);
@@ -172,7 +183,10 @@ export default function BookingWizard({ config }: { config: BookingConfig }) {
     setYear(y); setModel(""); setModels([]); setModelsStatus(y ? "loading" : "idle");
   }
 
-    const filtered = config.services.filter((s) => s.name.toLowerCase().includes(query.trim().toLowerCase()));
+    const filtered = config.services.filter((s) => {
+      const q = query.trim().toLowerCase();
+      return s.name.toLowerCase().includes(q) || (s.nameAr ?? "").toLowerCase().includes(q);
+    });
   const chosen = config.services.filter((s) => selected.includes(s.id));
   const phoneOk = parsePhone(phone) !== null;
 
@@ -239,16 +253,16 @@ export default function BookingWizard({ config }: { config: BookingConfig }) {
         <img src="/logo.svg" alt="Lezof" className="h-6 w-auto sm:h-7" />
         <LanguageSwitcher />
       </header>
-      <div className="grid flex-1 content-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
-        <aside className="relative hidden self-start overflow-hidden rounded-[28px] bg-[#111] shadow-[0_20px_50px_rgba(0,0,0,0.12)] lg:sticky lg:top-6 lg:block">
+      <div className="grid flex-1 content-start items-stretch gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
+        <aside className="relative hidden overflow-hidden rounded-[28px] bg-[#111] shadow-[0_20px_50px_rgba(0,0,0,0.12)] lg:flex">
           {/* Branch artwork with the service list baked in, same as book.lezof.com */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/hero-services.webp" alt={config.name} width={644} height={888} className="block h-auto w-full" />
+          <img src="/hero-services.webp" alt={config.name} width={644} height={888} className="block w-full object-cover object-[30%_bottom]" />
         </aside>
-        <div className="min-w-0">{children}</div>
+        <div className="flex min-w-0 flex-col [&>*:first-child]:flex-1">{children}</div>
       </div>
       <p className="mt-5 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-center text-[12px] text-[#71717a]">
-        <span className="inline-flex items-center gap-1.5"><Clock className="h-3.5 w-3.5 text-[#e8201c]" />{t("service.hours", { start: config.workingHours.start, end: config.workingHours.end })}</span>
+        <span className="inline-flex items-center gap-1.5"><Clock className="h-3.5 w-3.5 text-[#e8201c]" />{t("service.hours", { start: fmtClock(config.workingHours.start), end: fmtClock(config.workingHours.end) })}</span>
         {config.address && <span className="inline-flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5 text-[#e8201c]" />{config.address}</span>}
       </p>
     </div>
@@ -395,11 +409,20 @@ export default function BookingWizard({ config }: { config: BookingConfig }) {
                           onClick={() => setSelected((p) => (on ? p.filter((x) => x !== s.id) : [...p, s.id]))}
                           className={`flex min-h-16 w-full items-center gap-3 rounded-2xl border-2 bg-white p-3 text-start transition active:scale-[0.98] ${on ? "border-[#e8201c] shadow-[0_8px_20px_rgba(232,32,28,0.15)]" : "border-transparent"}`}
                         >
-                          <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${on ? "cta text-white" : "bg-[#f1f1f2] text-[#3f3f46]"}`}>
-                            {on ? <Check className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
-                          </span>
+                          {s.imageUrl ? (
+                            // The garage's own service icon (Settings → Booking Form); a check badge marks the selection.
+                            <span className="relative h-10 w-10 shrink-0">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={s.imageUrl} alt="" loading="lazy" className="h-10 w-10 rounded-xl bg-[#f1f1f2] object-cover" />
+                              {on && <span className="cta absolute -end-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full text-white ring-2 ring-white"><Check className="h-2.5 w-2.5" /></span>}
+                            </span>
+                          ) : (
+                            <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${on ? "cta text-white" : "bg-[#f1f1f2] text-[#3f3f46]"}`}>
+                              {on ? <Check className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
+                            </span>
+                          )}
                           <span className="min-w-0">
-                            <span className="block text-[13px] font-bold leading-tight">{s.name}</span>
+                            <span className="block text-[13px] font-bold leading-tight">{svcName(s)}</span>
                             {Number(s.unitPrice) > 0 && <span className="mt-0.5 block text-[11px] text-[#71717a]">{t("service.from")} {fmtNum(s.unitPrice)} {t("common.sr")}</span>}
                           </span>
                         </button>
@@ -473,7 +496,7 @@ export default function BookingWizard({ config }: { config: BookingConfig }) {
                 <div className="mt-4 space-y-2 rounded-2xl bg-white p-4 text-[14px]">
                   <h3 className="font-bold">{t("details.summary")}</h3>
                   {whenLabel && <p className="flex gap-2"><CalendarClock className="mt-0.5 h-4 w-4 shrink-0 text-[#e8201c]" /><b>{whenLabel}</b></p>}
-                  <p className="flex gap-2"><Wrench className="mt-0.5 h-4 w-4 shrink-0 text-[#e8201c]" /><b>{chosen.map((s) => s.name).join("، ")}</b></p>
+                  <p className="flex gap-2"><Wrench className="mt-0.5 h-4 w-4 shrink-0 text-[#e8201c]" /><b>{chosen.map(svcName).join("، ")}</b></p>
                   {(carLabel || plate) && <p className="flex gap-2"><Car className="mt-0.5 h-4 w-4 shrink-0 text-[#e8201c]" /><b>{[carLabel, plate].filter(Boolean).join(" · ")}</b></p>}
                 </div>
                 {error && <p role="alert" className="mt-3 text-[14px] text-[#e8201c]">{error}</p>}

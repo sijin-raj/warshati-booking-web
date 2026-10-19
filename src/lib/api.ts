@@ -13,6 +13,10 @@ export interface BookingService {
   name: string;
   description: string | null;
   unitPrice: string;
+  /** Arabic name set by the garage; null/absent = use `name`. */
+  nameAr?: string | null;
+  /** The garage's uploaded icon for this service, if any. */
+  imageUrl?: string | null;
 }
 
 export interface FieldRule {
