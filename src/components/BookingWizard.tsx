@@ -272,11 +272,11 @@ export default function BookingWizard({ config }: { config: BookingConfig }) {
   if (bookingId !== null) {
     return (
       shell(<>
-        <div className="rounded-[28px] bg-white p-7 text-center shadow-[0_20px_50px_rgba(0,0,0,0.08)]">
+        <div className="flex flex-col justify-center rounded-[28px] bg-white p-5 text-center shadow-[0_20px_50px_rgba(0,0,0,0.08)] sm:p-7">
           <div className="cta mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full text-white"><Check className="h-8 w-8" /></div>
-          <h1 className="text-2xl font-bold">{t("done.title")}</h1>
-          <p className="mt-2 text-[#71717a]">{t("done.subtitle")}</p>
-          <dl className="mt-6 space-y-3 rounded-2xl bg-[#f6f6f7] p-4 text-start text-[14px]">
+          <h1 className="text-xl font-bold sm:text-2xl">{t("done.title")}</h1>
+          <p className="mt-2 text-[14px] text-[#71717a] sm:text-base">{t("done.subtitle")}</p>
+          <dl className="mt-5 space-y-3 break-words rounded-2xl bg-[#f6f6f7] p-4 text-start text-[14px] sm:mt-6">
             <div><dt className="text-[#71717a]">{t("done.reference")}</dt><dd className="font-bold">#{fmtNum(bookingId)}</dd></div>
             {whenLabel && <div><dt className="text-[#71717a]">{t("done.when")}</dt><dd className="font-bold">{whenLabel}</dd></div>}
             <div><dt className="text-[#71717a]">{t("done.where")}</dt><dd className="font-bold">{config.name}{config.address ? ` — ${config.address}` : ""}</dd></div>
