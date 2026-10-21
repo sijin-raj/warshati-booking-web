@@ -146,32 +146,32 @@ export default function BookingWizard({ config }: { config: BookingConfig }) {
   // Car cascade: makes → years → models. Each step retries, and degrades to manual entry if the service stays down.
   useEffect(() => {
     let cancelled = false;
-    fetchCarList<{ make: string; logo: string | null }>("/api/car/makes", "makes").then((list) => {
+    fetchCarList<{ make: string; logo: string | null }>(`/api/car/makes?garageId=${config.id}`, "makes").then((list) => {
       if (cancelled) return;
       if (list) { setMakes(list); setMakesFailed(false); } else setMakesFailed(true);
     });
     return () => { cancelled = true; };
-  }, [makesTry]);
+  }, [makesTry, config.id]);
   useEffect(() => {
     if (!make) return;
     let cancelled = false;
-    fetchCarList<number>(`/api/car/years?make=${encodeURIComponent(make)}`, "years").then((list) => {
+    fetchCarList<number>(`/api/car/years?garageId=${config.id}&make=${encodeURIComponent(make)}`, "years").then((list) => {
       if (cancelled) return;
       if (list) { setYears([...list].reverse()); setYearsStatus("idle"); }
       else { setYears(FALLBACK_YEARS); setYearsStatus("error"); }
     });
     return () => { cancelled = true; };
-  }, [make]);
+  }, [make, config.id]);
   useEffect(() => {
     if (!make || !year) return;
     let cancelled = false;
-    fetchCarList<string>(`/api/car/models?make=${encodeURIComponent(make)}&year=${year}`, "models").then((list) => {
+    fetchCarList<string>(`/api/car/models?garageId=${config.id}&make=${encodeURIComponent(make)}&year=${year}`, "models").then((list) => {
       if (cancelled) return;
       if (list) { setModels(list); setModelsStatus("idle"); }
       else setModelsStatus("error");
     });
     return () => { cancelled = true; };
-  }, [make, year]);
+  }, [make, year, config.id]);
 
   function pickDate(d: string) {
     setDate(d); setSlots(null); setSlotsError(false); setSlot(null);
