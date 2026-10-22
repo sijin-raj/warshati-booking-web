@@ -46,3 +46,19 @@ export async function fetchBookingConfig(garageId: string): Promise<BookingConfi
   if (!res.ok) throw new Error(`API ${res.status}`);
   return res.json() as Promise<BookingConfig>;
 }
+
+export interface CarWashInfo {
+  garageName: string;
+  daysAhead: number;
+  vatRate: number;
+  /** True when the customer must confirm their phone with a WhatsApp code before booking. */
+  verifyPhone?: boolean;
+  services: { id: number; name: string; nameAr: string | null; price: number; durationMin: number }[];
+}
+
+export async function fetchCarWashInfo(garageId: string): Promise<CarWashInfo | null> {
+  const res = await fetch(apiUrl(`/api/public/car-wash/${encodeURIComponent(garageId)}/info`), { cache: "no-store" });
+  if (res.status === 404 || res.status === 400) return null;
+  if (!res.ok) throw new Error(`API ${res.status}`);
+  return res.json() as Promise<CarWashInfo>;
+}
