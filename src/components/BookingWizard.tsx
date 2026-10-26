@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Car, CalendarClock, Check, ChevronLeft, ChevronRight, Droplets, Phone, Search, Snowflake, Sparkles, Wrench, CircleDot, ShieldCheck, UserRound, MapPin, Clock } from "lucide-react";
-import type { BookingConfig } from "@/lib/api";
+import type { BookingConfig, CarWashInfo } from "@/lib/api";
 import { parsePhone } from "@/lib/phone";
 import { useI18n } from "@/i18n/provider";
 import LanguageSwitcher from "./LanguageSwitcher";
@@ -59,6 +59,21 @@ function Block({ title, open, onToggle, hideLabel, showLabel, children }: {
   );
 }
 
+const WASH_TEXT = {
+  en: {
+    group: "Car wash", price: "Price", vatNote: "Includes {vat} SAR VAT (15%)", inclVat: "incl. VAT", sr: "SAR", total: "Total incl. 15% VAT", plateRequired: "Plate number is required for a car wash",
+    verifyBtn: "Send code", verifySent: "We sent a 6-digit code to your WhatsApp.", confirmCode: "Verify", verified: "Number verified",
+    resend: "Resend code", verifyNeeded: "Verify your number to continue", manage: "Change or cancel booking", sending: "Booking…",
+    failed: "Couldn't complete the booking. Please try again.", ref: "Booking no.", oneKind: "A car wash is booked on its own — other services are cleared.",
+  },
+  ar: {
+    group: "غسيل السيارة", price: "السعر", vatNote: "يشمل {vat} ر.س ضريبة القيمة المضافة (15%)", inclVat: "شامل الضريبة", sr: "ر.س", total: "الإجمالي شامل ضريبة 15%", plateRequired: "رقم اللوحة مطلوب لحجز الغسيل",
+    verifyBtn: "إرسال الرمز", verifySent: "أرسلنا رمزًا من 6 أرقام إلى واتساب.", confirmCode: "تحقق", verified: "تم التحقق من الرقم",
+    resend: "إعادة إرسال الرمز", verifyNeeded: "تحقق من رقمك للمتابعة", manage: "تغيير الموعد أو الإلغاء", sending: "جارٍ الحجز…",
+    failed: "تعذّر إكمال الحجز. حاول مرة أخرى.", ref: "رقم الحجز", oneKind: "يُحجز الغسيل بشكل منفصل — تمت إزالة الخدمات الأخرى.",
+  },
+} as const;
+
 function serviceIcon(name: string) {
   const n = name.toLowerCase();
   if (/ac|air|cool/.test(n)) return Snowflake;
@@ -69,8 +84,9 @@ function serviceIcon(name: string) {
   return Wrench;
 }
 
-export default function BookingWizard({ config }: { config: BookingConfig }) {
+export default function BookingWizard({ config, wash }: { config: BookingConfig; wash?: CarWashInfo | null }) {
   const { t, locale, dir } = useI18n();
+  const wt = WASH_TEXT[locale === "ar" ? "ar" : "en"];
   const [step, setStep] = useState(0);
 
   // step 0
@@ -80,6 +96,14 @@ export default function BookingWizard({ config }: { config: BookingConfig }) {
   const [slots, setSlots] = useState<Slot[] | null>(null);
   const [slotsError, setSlotsError] = useState(false);
   const [slot, setSlot] = useState<Slot | null>(null);
+  // Car wash is chosen from the same service list; it is booked on its own (different calendar, bays and team).
+  const [washId, setWashId] = useState<number | null>(null);
+  const [washDone, setWashDone] = useState<{ jobNumber: string; scheduledAt: string; manageToken?: string } | null>(null);
+  const [otp, setOtp] = useState<"idle" | "sending" | "sent" | "verifying" | "verified">("idle");
+  const [code, setCode] = useState("");
+  const [verifyToken, setVerifyToken] = useState("");
+  const [otpError, setOtpError] = useState("");
+  const [cooldown, setCooldown] = useState(0);
 
   // step 1
   const [makes, setMakes] = useState<{ make: string; logo: string | null }[]>([]);
@@ -125,23 +149,32 @@ export default function BookingWizard({ config }: { config: BookingConfig }) {
   };
   const fmtNum = (n: number | string) => Number(n).toLocaleString(locale === "ar" ? "ar-SA" : "en-US");
 
-  const dates = useMemo(() => Array.from({ length: DAYS_AHEAD }, (_, i) => riyadhDate(i)), []);
-
+  const washService = wash?.services.find((s) => s.id === washId) ?? null;
+  const washMode = !!washService;
+  const needVerify = washMode && !!wash?.verifyPhone;
   const needsSchedule = useMemo(
-    () => config.services.some((s) => selected.includes(s.id) && SCHEDULED_SERVICE.test(s.name)),
-    [config.services, selected],
+    () => washMode || config.services.some((s) => selected.includes(s.id) && SCHEDULED_SERVICE.test(s.name)),
+    [config.services, selected, washMode],
   );
+  const dates = useMemo(() => Array.from({ length: washMode && wash ? wash.daysAhead + 1 : DAYS_AHEAD }, (_, i) => riyadhDate(i)), [washMode, wash]);
+  useEffect(() => { if (cooldown <= 0) return; const id = setTimeout(() => setCooldown((c) => c - 1), 1000); return () => clearTimeout(id); }, [cooldown]);
+  // A different number must be verified again.
+  useEffect(() => { setOtp("idle"); setCode(""); setVerifyToken(""); setOtpError(""); }, [phone]);
 
   // Load slots whenever the day changes — only once a schedulable service (e.g. Car Wash) is picked.
   useEffect(() => {
     if (!needsSchedule) return;
     let cancelled = false;
-    fetch(`/api/slots?garageId=${config.id}&date=${date}`)
+    setSlots(null); setSlotsError(false); setSlot(null);
+    const url = washId !== null
+      ? `/api/car-wash/slots?garageId=${config.id}&date=${date}&serviceId=${washId}`
+      : `/api/slots?garageId=${config.id}&date=${date}`;
+    fetch(url)
       .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((j) => !cancelled && setSlots(j.slots as Slot[]))
+      .then((j) => !cancelled && setSlots((j.slots ?? []) as Slot[]))
       .catch(() => !cancelled && setSlotsError(true));
     return () => { cancelled = true; };
-  }, [config.id, date, needsSchedule]);
+  }, [config.id, date, needsSchedule, washId]);
 
   // Car cascade: makes → years → models. Each step retries, and degrades to manual entry if the service stays down.
   useEffect(() => {
@@ -187,14 +220,23 @@ export default function BookingWizard({ config }: { config: BookingConfig }) {
       const q = query.trim().toLowerCase();
       return s.name.toLowerCase().includes(q) || (s.nameAr ?? "").toLowerCase().includes(q);
     });
+  const washFiltered = (wash?.services ?? []).filter((s) => {
+    const q = query.trim().toLowerCase();
+    return s.name.toLowerCase().includes(q) || (s.nameAr ?? "").toLowerCase().includes(q);
+  });
   const chosen = config.services.filter((s) => selected.includes(s.id));
   const phoneOk = parsePhone(phone) !== null;
 
   const carOk =
     (!req("vehicleBrand") || !!make) &&
     (!req("vehicleModel") || !!model);
-  const detailsOk = name.trim().length > 1 && phoneOk && (!req("customerEmail") || !!email.trim()) && (!req("notes") || !!notes.trim());
-  const canNext = step === 0 ? carOk && selected.length > 0 : (!needsSchedule || !!slot) && detailsOk;
+  const detailsOk = name.trim().length > 1 && phoneOk && (washMode || ((!req("customerEmail") || !!email.trim()) && (!req("notes") || !!notes.trim())));
+  const plate = [plateLetters.trim(), plateNums.trim()].filter(Boolean).join(" ");
+  // The garage's service prices already include VAT.
+  const washTotal = washService ? washService.price : 0;
+  const canNext = step === 0
+    ? carOk && (washMode || selected.length > 0)
+    : (!needsSchedule || !!slot) && detailsOk && (!needVerify || otp === "verified");
 
   const dayLabel = (d: string, i: number) => {
     if (i === 0) return t("service.today");
@@ -204,11 +246,43 @@ export default function BookingWizard({ config }: { config: BookingConfig }) {
   const whenLabel = needsSchedule && slot
     ? `${new Date(`${date}T12:00:00Z`).toLocaleDateString(locale === "ar" ? "ar-SA" : "en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" })} · ${slot.time}`
     : "";
-  const plate = [plateLetters.trim(), plateNums.trim()].filter(Boolean).join(" ");
   const carLabel = [make, model, year].filter(Boolean).join(" ");
+
+  async function sendCode() {
+    setOtp("sending"); setOtpError("");
+    try {
+      const res = await fetch(`/api/car-wash/p/${config.id}/otp/send`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phone: parsePhone(phone), lang: locale === "ar" ? "ar" : "en" }) });
+      const j = await res.json().catch(() => ({}));
+      if (res.ok) { setOtp("sent"); setCooldown(45); } else { setOtp("idle"); setOtpError(String(j?.error ?? wt.failed)); }
+    } catch { setOtp("idle"); setOtpError(wt.failed); }
+  }
+  async function checkCode() {
+    setOtp("verifying"); setOtpError("");
+    try {
+      const res = await fetch(`/api/car-wash/p/${config.id}/otp/verify`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phone: parsePhone(phone), code }) });
+      const j = await res.json().catch(() => ({}));
+      if (res.ok && j.token) { setVerifyToken(j.token); setOtp("verified"); } else { setOtp("sent"); setOtpError(String(j?.error ?? wt.failed)); }
+    } catch { setOtp("sent"); setOtpError(wt.failed); }
+  }
+
+  async function submitWash() {
+    if (!washService || !slot) return;
+    setSubmitting(true); setError(null);
+    try {
+      const res = await fetch(`/api/car-wash/book?garageId=${config.id}`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ serviceId: washService.id, slot: slot.iso, customerName: name.trim(), customerPhone: parsePhone(phone), plateNumber: plate || undefined, vehicleMake: make || undefined, vehicleModel: model || undefined, lang: locale === "ar" ? "ar" : "en", verifyToken: verifyToken || undefined }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (res.ok) { setWashDone(j); return; }
+      setError(String(j?.error ?? wt.failed));
+      if (res.status === 409) { setSlot(null); setSlots(null); fetch(`/api/car-wash/slots?garageId=${config.id}&date=${date}&serviceId=${washService.id}`).then((r) => r.json()).then((x) => setSlots(x.slots ?? [])).catch(() => {}); }
+    } catch { setError(wt.failed); } finally { setSubmitting(false); }
+  }
 
   async function submit() {
     if (submitting || (needsSchedule && !slot)) return;
+    if (washMode) return submitWash();
     setSubmitting(true);
     setError(null);
     try {
@@ -269,7 +343,7 @@ export default function BookingWizard({ config }: { config: BookingConfig }) {
   );
 
   // ── Confirmation ──────────────────────────────────────────────────────────
-  if (bookingId !== null) {
+  if (bookingId !== null || washDone) {
     return (
       shell(<>
         <div className="flex flex-col justify-center rounded-[28px] bg-white p-5 text-center shadow-[0_20px_50px_rgba(0,0,0,0.08)] sm:p-7">
@@ -277,7 +351,7 @@ export default function BookingWizard({ config }: { config: BookingConfig }) {
           <h1 className="text-xl font-bold sm:text-2xl">{t("done.title")}</h1>
           <p className="mt-2 text-[14px] text-[#71717a] sm:text-base">{t("done.subtitle")}</p>
           <dl className="mt-5 space-y-3 break-words rounded-2xl bg-[#f6f6f7] p-4 text-start text-[14px] sm:mt-6">
-            <div><dt className="text-[#71717a]">{t("done.reference")}</dt><dd className="font-bold">#{fmtNum(bookingId)}</dd></div>
+            <div><dt className="text-[#71717a]">{t("done.reference")}</dt><dd className="font-bold">{washDone ? washDone.jobNumber : `#${fmtNum(bookingId ?? 0)}`}</dd></div>
             {whenLabel && <div><dt className="text-[#71717a]">{t("done.when")}</dt><dd className="font-bold">{whenLabel}</dd></div>}
             <div><dt className="text-[#71717a]">{t("done.where")}</dt><dd className="font-bold">{config.name}{config.address ? ` — ${config.address}` : ""}</dd></div>
           </dl>
@@ -287,6 +361,7 @@ export default function BookingWizard({ config }: { config: BookingConfig }) {
                 <Phone className="h-4 w-4 text-[#e8201c]" />{t("done.call")}
               </a>
             )}
+            {washDone?.manageToken && <a href={`/manage/${washDone.manageToken}`} className="flex h-12 items-center justify-center rounded-full border border-[#e4e4e7] font-bold">{wt.manage}</a>}
             <button onClick={() => window.location.reload()} className="cta h-12 rounded-full font-bold text-white">{t("done.another")}</button>
           </div>
         </div>
@@ -374,7 +449,7 @@ export default function BookingWizard({ config }: { config: BookingConfig }) {
                       )}
                     </label>
                   </div>
-                  {show("plateNumber") && (
+                  {(show("plateNumber") || washMode) && (
                     <div className="mt-3 grid grid-cols-2 gap-3">
                       <label className="block">
                         <span className={labelCls}>{t("car.plateLetters")} <span className="font-normal normal-case tracking-normal text-[#a1a1aa]">({t("common.optional")})</span></span>
@@ -406,7 +481,7 @@ export default function BookingWizard({ config }: { config: BookingConfig }) {
                         <button
                           type="button"
                           aria-pressed={on}
-                          onClick={() => setSelected((p) => (on ? p.filter((x) => x !== s.id) : [...p, s.id]))}
+                          onClick={() => { setWashId(null); setSelected((p) => (on ? p.filter((x) => x !== s.id) : [...p, s.id])); }}
                           className={`flex min-h-16 w-full items-center gap-3 rounded-2xl border-2 bg-white p-3 text-start transition active:scale-[0.98] ${on ? "border-[#e8201c] shadow-[0_8px_20px_rgba(232,32,28,0.15)]" : "border-transparent"}`}
                         >
                           {s.imageUrl ? (
@@ -430,6 +505,32 @@ export default function BookingWizard({ config }: { config: BookingConfig }) {
                     );
                   })}
                 </ul>
+                {washFiltered.length > 0 && (
+                  <>
+                    <div className="mb-2 mt-4 flex items-center gap-2 text-[12px] font-bold uppercase tracking-wide text-[#52525b]"><Droplets className="h-3.5 w-3.5 text-[#e8201c]" />{wt.group}</div>
+                    <ul className="grid grid-cols-2 gap-2.5">
+                      {washFiltered.map((s) => {
+                        const on = washId === s.id;
+                        return (
+                          <li key={`w${s.id}`}>
+                            <button type="button" aria-pressed={on}
+                              onClick={() => { setSelected([]); setWashId(on ? null : s.id); }}
+                              className={`flex min-h-16 w-full items-center gap-3 rounded-2xl border-2 bg-white p-3 text-start transition active:scale-[0.98] ${on ? "border-[#e8201c] shadow-[0_8px_20px_rgba(232,32,28,0.15)]" : "border-transparent"}`}>
+                              <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${on ? "cta text-white" : "bg-[#f1f1f2] text-[#3f3f46]"}`}>
+                                {on ? <Check className="h-4 w-4" /> : <Droplets className="h-4 w-4" />}
+                              </span>
+                              <span className="min-w-0">
+                                <span className="block text-[13px] font-bold leading-tight">{svcName(s)}</span>
+                                <span className="mt-0.5 block text-[11px] text-[#71717a]">{fmtNum(s.price)} {wt.sr} · {wt.inclVat}</span>
+                              </span>
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </>
+                )}
+                {washMode && selected.length === 0 && <p className="mt-3 text-[12px] text-[#71717a]">{wt.oneKind}</p>}
               </Block>
             </>
           )}
@@ -456,7 +557,7 @@ export default function BookingWizard({ config }: { config: BookingConfig }) {
                       {slots.map((s) => (
                         <button key={s.iso} type="button" disabled={!s.available} onClick={() => setSlot(s)}
                           className={`h-10 rounded-xl text-[13px] font-bold transition disabled:cursor-not-allowed disabled:bg-transparent disabled:text-[#c4c4cc] disabled:line-through ${slot?.iso === s.iso ? "cta text-white" : "bg-white text-[#3f3f46]"}`}>
-                          {s.time}
+                          {washMode ? fmtClock(s.time) : s.time}
                         </button>
                       ))}
                     </div>
@@ -479,13 +580,34 @@ export default function BookingWizard({ config }: { config: BookingConfig }) {
                       onChange={(e) => setPhone(e.target.value)} onBlur={() => setPhoneTouched(true)} />
                     {phoneTouched && !phoneOk && <span className="mt-1 block text-[12px] text-[#e8201c]">{t("details.phoneInvalid")}</span>}
                   </label>
-                  {show("customerEmail") && (
+                  {needVerify && phoneOk && (
+                    <div className="rounded-xl bg-white p-3">
+                      {otp === "verified" ? (
+                        <p className="flex items-center gap-2 text-[14px] font-bold text-emerald-600"><Check className="h-4 w-4" />{wt.verified}</p>
+                      ) : otp === "idle" || otp === "sending" ? (
+                        <button type="button" disabled={otp === "sending" || cooldown > 0} onClick={sendCode} className="h-11 w-full rounded-xl bg-[#f4f4f5] text-[14px] font-bold disabled:opacity-50">
+                          {otp === "sending" ? wt.sending : cooldown > 0 ? `${wt.resend} (${cooldown})` : wt.verifyBtn}
+                        </button>
+                      ) : (
+                        <div className="space-y-2">
+                          <p className="text-[13px] text-[#52525b]">{wt.verifySent}</p>
+                          <div className="flex gap-2">
+                            <input className={`${inputCls} text-center text-lg font-bold tracking-[0.4em]`} dir="ltr" inputMode="numeric" maxLength={6} autoComplete="one-time-code" placeholder="••••••" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} />
+                            <button type="button" disabled={code.length !== 6 || otp === "verifying"} onClick={checkCode} className="cta h-12 shrink-0 rounded-xl px-5 text-[14px] font-bold text-white disabled:opacity-50">{otp === "verifying" ? "…" : wt.confirmCode}</button>
+                          </div>
+                          <button type="button" disabled={cooldown > 0} onClick={sendCode} className="text-[12px] font-bold text-[#e8201c] disabled:opacity-40">{cooldown > 0 ? `${wt.resend} (${cooldown})` : wt.resend}</button>
+                        </div>
+                      )}
+                      {otpError && <p role="alert" className="mt-2 text-[13px] text-[#e8201c]">{otpError}</p>}
+                    </div>
+                  )}
+                  {show("customerEmail") && !washMode && (
                     <label className="block">
                       <span className={labelCls}>{fields.customerEmail?.label || t("details.email")}{!req("customerEmail") && <span className="font-normal normal-case tracking-normal text-[#a1a1aa]"> ({t("common.optional")})</span>}</span>
                       <input className={inputCls} dir="ltr" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
                     </label>
                   )}
-                  {show("notes") && (
+                  {show("notes") && !washMode && (
                     <label className="block">
                       <span className={labelCls}>{fields.notes?.label || t("details.notes")}{!req("notes") && <span className="font-normal normal-case tracking-normal text-[#a1a1aa]"> ({t("common.optional")})</span>}</span>
                       <textarea className={`${inputCls} h-24 py-3`} value={notes} placeholder={t("details.notesPlaceholder")} onChange={(e) => setNotes(e.target.value)} />
@@ -496,7 +618,13 @@ export default function BookingWizard({ config }: { config: BookingConfig }) {
                 <div className="mt-4 space-y-2 rounded-2xl bg-white p-4 text-[14px]">
                   <h3 className="font-bold">{t("details.summary")}</h3>
                   {whenLabel && <p className="flex gap-2"><CalendarClock className="mt-0.5 h-4 w-4 shrink-0 text-[#e8201c]" /><b>{whenLabel}</b></p>}
-                  <p className="flex gap-2"><Wrench className="mt-0.5 h-4 w-4 shrink-0 text-[#e8201c]" /><b>{chosen.map(svcName).join("، ")}</b></p>
+                  <p className="flex gap-2"><Wrench className="mt-0.5 h-4 w-4 shrink-0 text-[#e8201c]" /><b>{washService ? svcName(washService) : chosen.map(svcName).join("، ")}</b></p>
+                  {washService && (
+                    <div className="border-t pt-2">
+                      <p className="flex justify-between gap-2"><span className="text-[#52525b]">{wt.price} ({wt.inclVat})</span><b>{washTotal.toFixed(2)} {wt.sr}</b></p>
+                      <p className="mt-0.5 text-[12px] text-[#71717a]">{wt.vatNote.replace("{vat}", (washTotal - washTotal / (1 + (wash?.vatRate ?? 0.15))).toFixed(2))}</p>
+                    </div>
+                  )}
                   {(carLabel || plate) && <p className="flex gap-2"><Car className="mt-0.5 h-4 w-4 shrink-0 text-[#e8201c]" /><b>{[carLabel, plate].filter(Boolean).join(" · ")}</b></p>}
                 </div>
                 {error && <p role="alert" className="mt-3 text-[14px] text-[#e8201c]">{error}</p>}

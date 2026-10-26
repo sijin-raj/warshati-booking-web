@@ -19,7 +19,7 @@ const labelCls = "mb-1.5 block text-[12px] font-bold uppercase tracking-wide tex
 
 const TEXT = {
   en: {
-    title: "Book a car wash", service: "Choose a wash", when: "Pick a day & time", today: "Today", tomorrow: "Tomorrow",
+    title: "Book a car wash", inclVat: "incl. VAT", service: "Choose a wash", when: "Pick a day & time", today: "Today", tomorrow: "Tomorrow",
     noSlots: "No free times on this day. Try another day.", slotsFailed: "Couldn't load times. Please try again.",
     details: "Your details", name: "Full name", phone: "Mobile number", phoneInvalid: "Enter a valid mobile number, e.g. 05XXXXXXXX",
     plateNums: "Plate numbers", plateLetters: "Plate letters", make: "Car make", model: "Model", optional: "optional",
@@ -27,7 +27,7 @@ const TEXT = {
     verifyBtn: "Send code", verifySent: "We sent a 6-digit code to your WhatsApp.", codeLabel: "Verification code", confirmCode: "Verify", verified: "Number verified", wrongPhoneEdit: "Change number", resend: "Resend code", verifyNeeded: "Verify your number to continue", manage: "Change or cancel booking", doneTitle: "You're booked!", doneBody: "Please arrive at your time. Pay at the garage after the wash.", ref: "Booking no.", another: "Make another booking",
   },
   ar: {
-    title: "احجز غسيل سيارتك", service: "اختر نوع الغسيل", when: "اختر اليوم والوقت", today: "اليوم", tomorrow: "غدًا",
+    title: "احجز غسيل سيارتك", inclVat: "شامل الضريبة", service: "اختر نوع الغسيل", when: "اختر اليوم والوقت", today: "اليوم", tomorrow: "غدًا",
     noSlots: "لا توجد أوقات متاحة في هذا اليوم. جرّب يومًا آخر.", slotsFailed: "تعذّر تحميل الأوقات. حاول مرة أخرى.",
     details: "بياناتك", name: "الاسم الكامل", phone: "رقم الجوال", phoneInvalid: "أدخل رقم جوال صحيح مثل 05XXXXXXXX",
     plateNums: "أرقام اللوحة", plateLetters: "حروف اللوحة", make: "ماركة السيارة", model: "الموديل", optional: "اختياري",
@@ -83,10 +83,10 @@ export default function CarWashBooking({ garageId, info }: { garageId: string; i
   }, [garageId, date, serviceId]);
 
   const service = info.services.find((s) => s.id === serviceId);
-  const total = service ? Math.round(service.price * (1 + info.vatRate) * 100) / 100 : 0;
+  const total = service ? service.price : 0; // prices already include VAT
   const phoneOk = !!parsePhone(phone);
   const plate = [plateNums.trim(), plateLetters.trim()].filter(Boolean).join(" ");
-  const canSubmit = !!service && !!slot && name.trim().length > 1 && phoneOk && plate.length > 0 && !submitting && (!needVerify || otp === "verified");
+  const canSubmit = !!service && !!slot && name.trim().length > 1 && phoneOk && !submitting && (!needVerify || otp === "verified");
   const svcName = (s: CarWashInfo["services"][number]) => (locale === "ar" && s.nameAr ? s.nameAr : s.name);
   const fmt = (n: number) => n.toLocaleString("en-SA", { maximumFractionDigits: 2 });
   const timeLabel = (iso: string) => new Date(iso).toLocaleString(locale === "ar" ? "ar-SA" : "en-GB", { timeZone: "Asia/Riyadh", weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true });
@@ -114,7 +114,7 @@ export default function CarWashBooking({ garageId, info }: { garageId: string; i
     try {
       const res = await fetch(`/api/car-wash/book?garageId=${garageId}`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ serviceId, slot: slot.iso, customerName: name.trim(), customerPhone: parsePhone(phone), plateNumber: plate, vehicleMake: make.trim() || undefined, vehicleModel: model.trim() || undefined, lang: locale === "ar" ? "ar" : "en", verifyToken: verifyToken || undefined }),
+        body: JSON.stringify({ serviceId, slot: slot.iso, customerName: name.trim(), customerPhone: parsePhone(phone), plateNumber: plate || undefined, vehicleMake: make.trim() || undefined, vehicleModel: model.trim() || undefined, lang: locale === "ar" ? "ar" : "en", verifyToken: verifyToken || undefined }),
       });
       const j = await res.json().catch(() => ({}));
       if (res.ok) setDone(j);
@@ -157,7 +157,7 @@ export default function CarWashBooking({ garageId, info }: { garageId: string; i
             <button type="button" onClick={() => setServiceId(s.id)}
               className={`flex w-full items-center justify-between rounded-2xl border-2 bg-[#f4f4f5] px-4 py-3.5 text-start transition ${serviceId === s.id ? "border-[#e8201c] bg-white shadow-[0_6px_16px_rgba(232,32,28,0.15)]" : "border-transparent"}`}>
               <span className="text-[15px] font-bold">{svcName(s)}</span>
-              <span className="text-[14px] font-bold text-[#e8201c]">{fmt(s.price)} {tx.sr}</span>
+              <span className="text-end"><span className="block text-[14px] font-bold text-[#e8201c]">{fmt(s.price)} {tx.sr}</span><span className="block text-[11px] text-[#71717a]">{tx.inclVat}</span></span>
             </button>
           </li>
         ))}
@@ -214,9 +214,9 @@ export default function CarWashBooking({ garageId, info }: { garageId: string; i
           </div>
         )}
         <div className="grid grid-cols-2 gap-3">
-          <label className="block"><span className={labelCls}>{tx.plateLetters}</span>
+          <label className="block"><span className={labelCls}>{tx.plateLetters} <span className="font-normal normal-case tracking-normal text-[#a1a1aa]">({tx.optional})</span></span>
             <input className={`${inputCls} text-center font-bold tracking-[0.25em]`} dir="ltr" maxLength={4} value={plateLetters} onChange={(e) => setPlateLetters(e.target.value.toUpperCase())} /></label>
-          <label className="block"><span className={labelCls}>{tx.plateNums}</span>
+          <label className="block"><span className={labelCls}>{tx.plateNums} <span className="font-normal normal-case tracking-normal text-[#a1a1aa]">({tx.optional})</span></span>
             <input className={`${inputCls} text-center font-bold tracking-[0.25em]`} dir="ltr" inputMode="numeric" maxLength={4} value={plateNums} onChange={(e) => setPlateNums(e.target.value.replace(/\D/g, ""))} /></label>
         </div>
         <div className="grid grid-cols-2 gap-3">
