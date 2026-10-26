@@ -39,6 +39,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang={locale} dir={localeMeta[locale].dir} className={`${grotesk.variable} h-full antialiased`} suppressHydrationWarning>
       <head>
+        {/* Google Tag Manager — as high in <head> as possible, as Google recommends */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','GTM-FVTZ3FHG');`,
+          }}
+        />
         <script
           dangerouslySetInnerHTML={{
             __html: `(function(){try{var k=${JSON.stringify(LOCALE_COOKIE)};var m=document.cookie.match(new RegExp('(?:^|; )'+k+'=([^;]*)'));var l=m?decodeURIComponent(m[1]):null;if(l!=='en'&&l!=='ar'){l=localStorage.getItem('lezof-locale');}if(l==='ar'||l==='en'){document.documentElement.lang=l;document.documentElement.dir=l==='ar'?'rtl':'ltr';}}catch(e){}})();`,
@@ -46,6 +52,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         />
       </head>
       <body className="min-h-full flex flex-col">
+        <noscript>
+          <iframe src="https://www.googletagmanager.com/ns.html?id=GTM-FVTZ3FHG" height="0" width="0" style={{ display: "none", visibility: "hidden" }} />
+        </noscript>
         <Script id="snap-pixel" strategy="afterInteractive">{`(function(e,t,n){if(e.snaptr)return;var a=e.snaptr=function(){a.handleRequest?a.handleRequest.apply(a,arguments):a.queue.push(arguments)};a.queue=[];var s='script';var r=t.createElement(s);r.async=!0;r.src=n;var u=t.getElementsByTagName(s)[0];u.parentNode.insertBefore(r,u);})(window,document,'https://sc-static.net/scevent.min.js');snaptr('init','78f661ee-c9f7-4f86-a88a-ec67f4331356',{});snaptr('track','PAGE_VIEW');`}</Script>
         <I18nProvider initialLocale={locale}>{children}</I18nProvider>
       </body>
