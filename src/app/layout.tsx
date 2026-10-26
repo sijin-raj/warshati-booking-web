@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { cookies } from "next/headers";
+import Script from "next/script";
 import { I18nProvider } from "@/i18n/provider";
 import { getLocaleFromCookieHeader } from "@/i18n/server";
 import { localeMeta, LOCALE_COOKIE } from "@/i18n/config";
@@ -45,6 +46,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         />
       </head>
       <body className="min-h-full flex flex-col">
+        <Script id="snap-pixel" strategy="afterInteractive">{`(function(e,t,n){if(e.snaptr)return;var a=e.snaptr=function(){a.handleRequest?a.handleRequest.apply(a,arguments):a.queue.push(arguments)};a.queue=[];var s='script';var r=t.createElement(s);r.async=!0;r.src=n;var u=t.getElementsByTagName(s)[0];u.parentNode.insertBefore(r,u);})(window,document,'https://sc-static.net/scevent.min.js');snaptr('init','78f661ee-c9f7-4f86-a88a-ec67f4331356',{});snaptr('track','PAGE_VIEW');`}</Script>
         <I18nProvider initialLocale={locale}>{children}</I18nProvider>
       </body>
     </html>
