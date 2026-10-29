@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { CalendarClock, Check, Droplets } from "lucide-react";
 import type { CarWashInfo } from "@/lib/api";
 import { parsePhone } from "@/lib/phone";
+import { track, trackSignUp } from "@/lib/track";
 import { useI18n } from "@/i18n/provider";
 import LanguageSwitcher from "./LanguageSwitcher";
 
@@ -110,6 +111,7 @@ export default function CarWashBooking({ garageId, info }: { garageId: string; i
 
   async function submit() {
     if (!canSubmit || !slot) return;
+    track("booking_submit", { booking_type: "car_wash" });
     setSubmitting(true); setError("");
     try {
       const res = await fetch(`/api/car-wash/book?garageId=${garageId}`, {
@@ -117,7 +119,10 @@ export default function CarWashBooking({ garageId, info }: { garageId: string; i
         body: JSON.stringify({ serviceId, slot: slot.iso, customerName: name.trim(), customerPhone: parsePhone(phone), plateNumber: plate, vehicleMake: make.trim() || undefined, vehicleModel: model.trim() || undefined, lang: locale === "ar" ? "ar" : "en", verifyToken: verifyToken || undefined }),
       });
       const j = await res.json().catch(() => ({}));
-      if (res.ok) setDone(j);
+      if (res.ok) {
+        setDone(j);
+        void trackSignUp({ name, phone: parsePhone(phone) }, { booking_id: j.jobNumber ?? null, service: service?.name, booking_type: "car_wash" });
+      }
       else {
         setError(String(j?.error ?? tx.failed));
         if (res.status === 409) { setSlot(null); setDate((d) => d); fetch(`/api/car-wash/slots?garageId=${garageId}&date=${date}${serviceId ? `&serviceId=${serviceId}` : ""}`).then((r) => r.json()).then((x) => setSlots(x.slots ?? [])).catch(() => {}); }
