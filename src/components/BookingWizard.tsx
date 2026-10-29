@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Car, CalendarClock, Check, ChevronLeft, ChevronRight, Droplets, Phone, Search, Snowflake, Sparkles, Wrench, CircleDot, ShieldCheck, UserRound, MapPin, Clock } from "lucide-react";
 import type { BookingConfig, CarWashInfo } from "@/lib/api";
 import { parsePhone } from "@/lib/phone";
+import { track, trackSignUp } from "@/lib/track";
 import { useI18n } from "@/i18n/provider";
 import LanguageSwitcher from "./LanguageSwitcher";
 
@@ -208,8 +209,10 @@ export default function BookingWizard({ config, wash }: { config: BookingConfig;
 
   function pickDate(d: string) {
     setDate(d); setSlots(null); setSlotsError(false); setSlot(null);
+    track("select_date", { date: d });
   }
   function pickMake(m: string) {
+    track("select_brand", { brand: m });
     setMake(m); setYear(""); setYears([]); setYearsStatus("loading"); setModel(""); setModels([]); setModelsStatus("idle");
   }
   function pickYear(y: string) {
@@ -274,7 +277,11 @@ export default function BookingWizard({ config, wash }: { config: BookingConfig;
         body: JSON.stringify({ serviceId: washService.id, slot: slot.iso, customerName: name.trim(), customerPhone: parsePhone(phone), plateNumber: plate || undefined, vehicleMake: make || undefined, vehicleModel: model || undefined, lang: locale === "ar" ? "ar" : "en", verifyToken: verifyToken || undefined }),
       });
       const j = await res.json().catch(() => ({}));
-      if (res.ok) { setWashDone(j); return; }
+      if (res.ok) {
+        setWashDone(j);
+        void trackSignUp({ name, email, phone: parsePhone(phone) }, { booking_id: j.jobNumber ?? null, service: washService.name, branch: config.name, booking_type: "car_wash" });
+        return;
+      }
       setError(String(j?.error ?? wt.failed));
       if (res.status === 409) { setSlot(null); setSlots(null); fetch(`/api/car-wash/slots?garageId=${config.id}&date=${date}&serviceId=${washService.id}`).then((r) => r.json()).then((x) => setSlots(x.slots ?? [])).catch(() => {}); }
     } catch { setError(wt.failed); } finally { setSubmitting(false); }
@@ -282,6 +289,7 @@ export default function BookingWizard({ config, wash }: { config: BookingConfig;
 
   async function submit() {
     if (submitting || (needsSchedule && !slot)) return;
+    track("booking_submit", { branch: config.name, booking_type: washMode ? "car_wash" : "workshop" });
     if (washMode) return submitWash();
     setSubmitting(true);
     setError(null);
@@ -309,6 +317,10 @@ export default function BookingWizard({ config, wash }: { config: BookingConfig;
       }
       const j = await res.json();
       setBookingId(j.id ?? null);
+      void trackSignUp(
+        { name, email, phone: parsePhone(phone) },
+        { booking_id: j.id ?? null, service: chosen.map((s) => s.name).join(", "), branch: config.name, booking_type: "workshop" },
+      );
     } catch {
       setError(t("details.failed"));
     } finally {
@@ -481,14 +493,14 @@ export default function BookingWizard({ config, wash }: { config: BookingConfig;
                         <button
                           type="button"
                           aria-pressed={on}
-                          onClick={() => { setWashId(null); setSelected((p) => (on ? p.filter((x) => x !== s.id) : [...p, s.id])); }}
+                          onClick={() => { track(on ? "deselect_service" : "select_service", { service: s.name }); setWashId(null); setSelected((p) => (on ? p.filter((x) => x !== s.id) : [...p, s.id])); }}
                           className={`flex min-h-16 w-full items-center gap-3 rounded-2xl border-2 bg-white p-3 text-start transition active:scale-[0.98] ${on ? "border-[#e8201c] shadow-[0_8px_20px_rgba(232,32,28,0.15)]" : "border-transparent"}`}
                         >
                           {s.imageUrl ? (
                             // The garage's own service icon (Settings → Booking Form); a check badge marks the selection.
                             <span className="relative h-10 w-10 shrink-0">
                               {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img src={s.imageUrl} alt="" loading="lazy" className="h-10 w-10 rounded-xl bg-[#f1f1f2] object-cover" />
+                              <img src={s.imageUrl} alt="" loading="lazy" className="h-10 w-10 rounded-xl bg-[#f1f1f2] object-contain p-2" />
                               {on && <span className="cta absolute -end-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full text-white ring-2 ring-white"><Check className="h-2.5 w-2.5" /></span>}
                             </span>
                           ) : (
@@ -555,7 +567,7 @@ export default function BookingWizard({ config, wash }: { config: BookingConfig;
                   ) : slots.some((s) => s.available) ? (
                     <div className="grid max-h-52 grid-cols-4 gap-2 overflow-y-auto">
                       {slots.map((s) => (
-                        <button key={s.iso} type="button" disabled={!s.available} onClick={() => setSlot(s)}
+                        <button key={s.iso} type="button" disabled={!s.available} onClick={() => { track("select_slot", { slot: s.iso }); setSlot(s); }}
                           className={`h-10 rounded-xl text-[13px] font-bold transition disabled:cursor-not-allowed disabled:bg-transparent disabled:text-[#c4c4cc] disabled:line-through ${slot?.iso === s.iso ? "cta text-white" : "bg-white text-[#3f3f46]"}`}>
                           {washMode ? fmtClock(s.time) : s.time}
                         </button>
@@ -635,12 +647,12 @@ export default function BookingWizard({ config, wash }: { config: BookingConfig;
 
         <div className="mt-4 flex gap-3">
           {step > 0 && (
-            <button type="button" onClick={() => setStep(step - 1)} className="flex h-12 items-center gap-1 rounded-full bg-[#f4f4f5] px-5 font-bold">
+            <button type="button" onClick={() => { track("booking_step_back", { from_step: step }); setStep(step - 1); }} className="flex h-12 items-center gap-1 rounded-full bg-[#f4f4f5] px-5 font-bold">
               <Back className="h-4 w-4" />{t("common.back")}
             </button>
           )}
           {step < 1 ? (
-            <button type="button" disabled={!canNext} onClick={() => setStep(step + 1)}
+            <button type="button" disabled={!canNext} onClick={() => { track("booking_step_next", { from_step: step }); setStep(step + 1); }}
               className="cta flex h-12 flex-1 items-center justify-center gap-1 rounded-full font-bold text-white">
               {t("common.next")}<Fwd className="h-4 w-4" />
             </button>
