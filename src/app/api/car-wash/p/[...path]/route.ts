@@ -4,7 +4,7 @@ import { apiUrl } from "@/lib/api";
 // Thin, allow-listed proxy to the backend's public car wash API (phone verification + self-service manage link).
 const ALLOWED = [
   /^\d+\/otp\/(send|verify)$/,
-  /^manage\/[A-Za-z0-9-]{16,64}(\/(slots|cancel|reschedule))?$/,
+  /^manage\/[A-Za-z0-9-]{16,64}(\/(slots|cancel|reschedule|pay-status))?$/,
 ];
 
 async function forward(req: Request, ctx: { params: Promise<{ path: string[] }> }) {

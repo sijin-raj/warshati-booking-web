@@ -53,6 +53,8 @@ export interface CarWashInfo {
   vatRate: number;
   /** True when the customer must confirm their phone with a WhatsApp code before booking. */
   verifyPhone?: boolean;
+  /** True when the garage has MyFatoorah set up, so the customer can pay on the website. */
+  onlinePayment?: boolean;
   services: { id: number; name: string; nameAr: string | null; price: number; durationMin: number }[];
 }
 

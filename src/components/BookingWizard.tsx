@@ -65,13 +65,15 @@ const WASH_TEXT = {
     group: "Car wash", price: "Price", vatNote: "Includes {vat} SAR VAT (15%)", inclVat: "incl. VAT", sr: "SAR", total: "Total incl. 15% VAT", plateRequired: "Plate number is required for a car wash",
     verifyBtn: "Send code", verifySent: "We sent a 6-digit code to your WhatsApp.", confirmCode: "Verify", verified: "Number verified",
     resend: "Resend code", verifyNeeded: "Verify your number to continue", manage: "Change or cancel booking", sending: "Booking…",
-    failed: "Couldn't complete the booking. Please try again.", ref: "Booking no.", oneKind: "A car wash is booked on its own — other services are cleared.",
+    failed: "Couldn't complete the booking. Please try again.", ref: "Booking no.",
+    payTitle: "How would you like to pay?", payOnline: "Pay online now", payOnlineHint: "Card, mada or Apple Pay — secured by MyFatoorah", payGarage: "Pay at the garage", payGarageHint: "Pay after the wash", payAndConfirm: "Pay {amount} SAR & confirm", redirecting: "Taking you to payment…", holdNote: "Your time is held while you pay.", oneKind: "A car wash is booked on its own — other services are cleared.",
   },
   ar: {
     group: "غسيل السيارة", price: "السعر", vatNote: "يشمل {vat} ر.س ضريبة القيمة المضافة (15%)", inclVat: "شامل الضريبة", sr: "ر.س", total: "الإجمالي شامل ضريبة 15%", plateRequired: "رقم اللوحة مطلوب لحجز الغسيل",
     verifyBtn: "إرسال الرمز", verifySent: "أرسلنا رمزًا من 6 أرقام إلى واتساب.", confirmCode: "تحقق", verified: "تم التحقق من الرقم",
     resend: "إعادة إرسال الرمز", verifyNeeded: "تحقق من رقمك للمتابعة", manage: "تغيير الموعد أو الإلغاء", sending: "جارٍ الحجز…",
-    failed: "تعذّر إكمال الحجز. حاول مرة أخرى.", ref: "رقم الحجز", oneKind: "يُحجز الغسيل بشكل منفصل — تمت إزالة الخدمات الأخرى.",
+    failed: "تعذّر إكمال الحجز. حاول مرة أخرى.", ref: "رقم الحجز",
+    payTitle: "كيف تريد الدفع؟", payOnline: "ادفع الآن عبر الإنترنت", payOnlineHint: "بطاقة أو مدى أو Apple Pay — بحماية MyFatoorah", payGarage: "الدفع في الورشة", payGarageHint: "ادفع بعد الغسيل", payAndConfirm: "ادفع {amount} ر.س وأكّد الحجز", redirecting: "جارٍ تحويلك إلى الدفع…", holdNote: "موعدك محجوز أثناء الدفع.", oneKind: "يُحجز الغسيل بشكل منفصل — تمت إزالة الخدمات الأخرى.",
   },
 } as const;
 
@@ -99,6 +101,8 @@ export default function BookingWizard({ config, wash }: { config: BookingConfig;
   const [slot, setSlot] = useState<Slot | null>(null);
   // Car wash is chosen from the same service list; it is booked on its own (different calendar, bays and team).
   const [washId, setWashId] = useState<number | null>(null);
+  const [redirecting, setRedirecting] = useState(false);
+  const [payMethod, setPayMethod] = useState<"online" | "garage">("online");
   const [washDone, setWashDone] = useState<{ jobNumber: string; scheduledAt: string; manageToken?: string } | null>(null);
   const [otp, setOtp] = useState<"idle" | "sending" | "sent" | "verifying" | "verified">("idle");
   const [code, setCode] = useState("");
@@ -268,15 +272,25 @@ export default function BookingWizard({ config, wash }: { config: BookingConfig;
     } catch { setOtp("sent"); setOtpError(wt.failed); }
   }
 
+  const payOnline = washMode && !!wash?.onlinePayment && payMethod === "online";
   async function submitWash() {
     if (!washService || !slot) return;
+    let leaving = false;
     setSubmitting(true); setError(null);
     try {
       const res = await fetch(`/api/car-wash/book?garageId=${config.id}`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ serviceId: washService.id, slot: slot.iso, customerName: name.trim(), customerPhone: parsePhone(phone), plateNumber: plate || undefined, vehicleMake: make || undefined, vehicleModel: model || undefined, lang: locale === "ar" ? "ar" : "en", verifyToken: verifyToken || undefined }),
+        body: JSON.stringify({ serviceId: washService.id, slot: slot.iso, customerName: name.trim(), customerPhone: parsePhone(phone), plateNumber: plate || undefined, vehicleMake: make || undefined, vehicleModel: model || undefined, lang: locale === "ar" ? "ar" : "en", verifyToken: verifyToken || undefined, payOnline: payOnline || undefined, returnBase: payOnline ? window.location.origin : undefined }),
       });
       const j = await res.json().catch(() => ({}));
+      if (res.ok && j.paymentUrl) {
+        // Online payment: the booking is created and the slot held; MyFatoorah takes the customer from here.
+        void trackSignUp({ name, email, phone: parsePhone(phone) }, { booking_id: j.jobNumber ?? null, service: washService.name, branch: config.name, booking_type: "car_wash", payment: "online_pending" });
+        leaving = true;
+        setRedirecting(true);
+        window.location.href = j.paymentUrl;
+        return;
+      }
       if (res.ok) {
         setWashDone(j);
         void trackSignUp({ name, email, phone: parsePhone(phone) }, { booking_id: j.jobNumber ?? null, service: washService.name, branch: config.name, booking_type: "car_wash" });
@@ -284,7 +298,7 @@ export default function BookingWizard({ config, wash }: { config: BookingConfig;
       }
       setError(String(j?.error ?? wt.failed));
       if (res.status === 409) { setSlot(null); setSlots(null); fetch(`/api/car-wash/slots?garageId=${config.id}&date=${date}&serviceId=${washService.id}`).then((r) => r.json()).then((x) => setSlots(x.slots ?? [])).catch(() => {}); }
-    } catch { setError(wt.failed); } finally { setSubmitting(false); }
+    } catch { setError(wt.failed); } finally { if (!leaving) setSubmitting(false); }
   }
 
   async function submit() {
@@ -639,6 +653,21 @@ export default function BookingWizard({ config, wash }: { config: BookingConfig;
                   )}
                   {(carLabel || plate) && <p className="flex gap-2"><Car className="mt-0.5 h-4 w-4 shrink-0 text-[#e8201c]" /><b>{[carLabel, plate].filter(Boolean).join(" · ")}</b></p>}
                 </div>
+                {washService && wash?.onlinePayment && (
+                  <div className="mt-4 rounded-2xl bg-white p-4 text-[14px]">
+                    <h3 className="mb-2.5 font-bold">{wt.payTitle}</h3>
+                    <div role="radiogroup" className="grid gap-2">
+                      {([["online", wt.payOnline, wt.payOnlineHint], ["garage", wt.payGarage, wt.payGarageHint]] as const).map(([k, label, hint]) => (
+                        <button key={k} type="button" role="radio" aria-checked={payMethod === k} onClick={() => setPayMethod(k)}
+                          className={`flex items-center gap-3 rounded-xl border-2 p-3 text-start transition ${payMethod === k ? "border-[#e8201c] bg-[#fff5f5]" : "border-[#e4e4e7]"}`}>
+                          <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${payMethod === k ? "border-[#e8201c]" : "border-[#d4d4d8]"}`}>{payMethod === k && <span className="h-2.5 w-2.5 rounded-full bg-[#e8201c]" />}</span>
+                          <span className="min-w-0"><span className="block font-bold">{label}</span><span className="block text-[12px] text-[#71717a]">{hint}</span></span>
+                        </button>
+                      ))}
+                    </div>
+                    {payMethod === "online" && <p className="mt-2 text-[12px] text-[#71717a]">{wt.holdNote}</p>}
+                  </div>
+                )}
                 {error && <p role="alert" className="mt-3 text-[14px] text-[#e8201c]">{error}</p>}
               </Block>
             </>
@@ -658,7 +687,7 @@ export default function BookingWizard({ config, wash }: { config: BookingConfig;
             </button>
           ) : (
             <button type="button" disabled={!canNext || submitting} onClick={submit} className="cta h-12 flex-1 rounded-full font-bold text-white">
-              {submitting ? t("details.sending") : config.form.submitLabel || t("details.confirm")}
+              {redirecting ? wt.redirecting : submitting ? t("details.sending") : payOnline ? wt.payAndConfirm.replace("{amount}", washTotal.toFixed(2)) : config.form.submitLabel || t("details.confirm")}
             </button>
           )}
         </div>
