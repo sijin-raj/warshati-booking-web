@@ -8,7 +8,7 @@ import LanguageSwitcher from "./LanguageSwitcher";
 interface Booking {
   jobNumber: string; status: string; plateNumber: string | null; service: string; scheduledAt: string | null; durationMin: number;
   garageName: string; daysAhead: number; cancelWindowMin: number; canChange: boolean; reason: "status" | "too_late" | null;
-  paymentStatus?: string; total?: number; onlinePayment?: boolean; payUrl?: string | null; payExpiresAt?: string | null;
+  paymentStatus?: string; canCancel?: boolean; total?: number; onlinePayment?: boolean; payUrl?: string | null; payExpiresAt?: string | null;
 }
 interface Slot { time: string; iso: string; available: boolean; current: boolean }
 
@@ -152,9 +152,10 @@ export default function CarWashManage({ token }: { token: string }) {
       {b.canChange && mode === "view" && (
         <div className="mt-4 grid gap-2.5">
           <button type="button" onClick={() => { setMode("change"); setResult(null); setError(""); }} className="cta h-12 rounded-full font-bold text-white">{tx.change}</button>
-          <button type="button" onClick={() => { setMode("cancel"); setResult(null); setError(""); }} className="h-12 rounded-full bg-[#f4f4f5] font-bold text-[#e8201c]">{tx.cancel}</button>
+          {b.canCancel !== false && <button type="button" onClick={() => { setMode("cancel"); setResult(null); setError(""); }} className="h-12 rounded-full bg-[#f4f4f5] font-bold text-[#e8201c]">{tx.cancel}</button>}
         </div>
       )}
+      {b.canChange && b.canCancel === false && b.paymentStatus === "paid" && <p className="mt-3 text-[13px] text-[#52525b]">{tx.paidCancelNote}</p>}
 
       {b.canChange && mode === "cancel" && (
         <div className="mt-4 rounded-2xl bg-[#f4f4f5] p-4">
