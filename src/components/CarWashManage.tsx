@@ -23,6 +23,7 @@ const TEXT = {
     change: "Change time", cancel: "Cancel booking", confirmCancel: "Yes, cancel it", keep: "Keep booking", sure: "Cancel this booking?",
     pick: "Pick a new day & time", today: "Today", tomorrow: "Tomorrow", noSlots: "No free times on this day.", save: "Confirm new time", saving: "Saving…",
     savedTitle: "Booking updated", cancelledTitle: "Booking cancelled", back: "Back", failed: "Something went wrong. Please try again.",
+    expired: "This booking expired because the payment wasn't completed. Please make a new booking.",
     paid: "Payment received", paidSub: (a: string) => `${a} SAR paid online. See you at your time!`, payDue: "Complete your payment to confirm this booking.", payNow: "Pay now", payUntil: (t: string) => `Your time is held until ${t}.`,
     confirming: "We're confirming your payment…", checkAgain: "Check again", payFailed: "The payment didn't go through. Your booking is not confirmed.", paidCancelNote: "You paid online — please contact the garage about your payment.",
   },
@@ -33,6 +34,7 @@ const TEXT = {
     change: "تغيير الموعد", cancel: "إلغاء الحجز", confirmCancel: "نعم، إلغاء", keep: "إبقاء الحجز", sure: "هل تريد إلغاء هذا الحجز؟",
     pick: "اختر يومًا ووقتًا جديدًا", today: "اليوم", tomorrow: "غدًا", noSlots: "لا توجد أوقات متاحة في هذا اليوم.", save: "تأكيد الموعد الجديد", saving: "جارٍ الحفظ…",
     savedTitle: "تم تحديث الحجز", cancelledTitle: "تم إلغاء الحجز", back: "رجوع", failed: "حدث خطأ. حاول مرة أخرى.",
+    expired: "انتهت صلاحية هذا الحجز لأن الدفع لم يكتمل. يرجى إجراء حجز جديد.",
     paid: "تم استلام الدفع", paidSub: (a: string) => `تم دفع ${a} ر.س عبر الإنترنت. نراك في موعدك!`, payDue: "أكمل الدفع لتأكيد هذا الحجز.", payNow: "ادفع الآن", payUntil: (t: string) => `موعدك محجوز حتى ${t}.`,
     confirming: "نتحقق من عملية الدفع…", checkAgain: "تحقق مرة أخرى", payFailed: "لم تكتمل عملية الدفع. حجزك غير مؤكد.", paidCancelNote: "لقد دفعت عبر الإنترنت — يرجى التواصل مع الورشة بخصوص المبلغ.",
   },
@@ -117,7 +119,7 @@ export default function CarWashManage({ token }: { token: string }) {
   if (state === "missing" || !b) return shell(<p className="rounded-2xl bg-[#f4f4f5] p-5 text-[15px]">{tx.notFound}</p>);
 
   const dates = Array.from({ length: b.daysAhead + 1 }, (_, i) => riyadhDate(i));
-  const note = b.status === "cancelled" ? tx.cancelled : b.status === "booked" ? null : ["delivered", "no_show"].includes(b.status) ? tx.done : tx.inProgress;
+  const note = b.status === "cancelled" ? tx.cancelled : b.status === "expired" ? tx.expired : b.status === "booked" || b.status === "pending_payment" ? null : ["delivered", "no_show"].includes(b.status) ? tx.done : tx.inProgress;
 
   return shell(
     <>
@@ -147,7 +149,7 @@ export default function CarWashManage({ token }: { token: string }) {
         </div>
       )}
       {note && <p className="mt-4 rounded-2xl bg-[#f4f4f5] p-4 text-[14px] text-[#52525b]">{note}</p>}
-      {!note && !b.canChange && <p className="mt-4 rounded-2xl bg-amber-50 p-4 text-[14px] text-amber-800">{tx.tooLate(b.cancelWindowMin)}</p>}
+      {!note && !b.canChange && b.status !== "pending_payment" && <p className="mt-4 rounded-2xl bg-amber-50 p-4 text-[14px] text-amber-800">{tx.tooLate(b.cancelWindowMin)}</p>}
 
       {b.canChange && mode === "view" && (
         <div className="mt-4 grid gap-2.5">
