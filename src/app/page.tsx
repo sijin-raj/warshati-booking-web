@@ -1,4 +1,4 @@
-import { fetchBookingConfig } from "@/lib/api";
+import { fetchBookingConfig, fetchCarWashInfo } from "@/lib/api";
 import BookingWizard from "@/components/BookingWizard";
 import HomeMessage from "@/components/HomeMessage";
 import NotFoundMessage from "@/components/NotFoundMessage";
@@ -11,7 +11,10 @@ export const dynamic = "force-dynamic";
 export default async function Home() {
   const defaultGarage = process.env.NEXT_PUBLIC_DEFAULT_GARAGE_ID;
   if (!defaultGarage || !/^\d+$/.test(defaultGarage)) return <HomeMessage />;
-  const config = await fetchBookingConfig(defaultGarage).catch(() => null);
+  const [config, wash] = await Promise.all([
+    fetchBookingConfig(defaultGarage).catch(() => null),
+    fetchCarWashInfo(defaultGarage).catch(() => null),
+  ]);
   if (!config) return <NotFoundMessage />;
-  return <BookingWizard config={config} />;
+  return <BookingWizard config={config} wash={wash?.services.length ? wash : null} />;
 }

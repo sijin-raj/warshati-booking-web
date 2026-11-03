@@ -20,7 +20,8 @@ const labelCls = "mb-1.5 block text-[12px] font-bold uppercase tracking-wide tex
 
 const TEXT = {
   en: {
-    title: "Book a car wash", service: "Choose a wash", when: "Pick a day & time", today: "Today", tomorrow: "Tomorrow",
+    payTitle: "How would you like to pay?", payOnline: "Pay online now", payOnlineHint: "Card, mada or Apple Pay — secured by MyFatoorah", payGarage: "Pay at the garage", payGarageHint: "Pay after the wash", payAndConfirm: "Pay {amount} SAR & confirm", redirecting: "Taking you to payment…", holdNote: "Your time is held while you pay.",
+    title: "Book a car wash", inclVat: "incl. VAT", service: "Choose a wash", when: "Pick a day & time", today: "Today", tomorrow: "Tomorrow",
     noSlots: "No free times on this day. Try another day.", slotsFailed: "Couldn't load times. Please try again.",
     details: "Your details", name: "Full name", phone: "Mobile number", phoneInvalid: "Enter a valid mobile number, e.g. 05XXXXXXXX",
     plateNums: "Plate numbers", plateLetters: "Plate letters", make: "Car make", model: "Model", optional: "optional",
@@ -28,7 +29,8 @@ const TEXT = {
     verifyBtn: "Send code", verifySent: "We sent a 6-digit code to your WhatsApp.", codeLabel: "Verification code", confirmCode: "Verify", verified: "Number verified", wrongPhoneEdit: "Change number", resend: "Resend code", verifyNeeded: "Verify your number to continue", manage: "Change or cancel booking", doneTitle: "You're booked!", doneBody: "Please arrive at your time. Pay at the garage after the wash.", ref: "Booking no.", another: "Make another booking",
   },
   ar: {
-    title: "احجز غسيل سيارتك", service: "اختر نوع الغسيل", when: "اختر اليوم والوقت", today: "اليوم", tomorrow: "غدًا",
+    payTitle: "كيف تريد الدفع؟", payOnline: "ادفع الآن عبر الإنترنت", payOnlineHint: "بطاقة أو مدى أو Apple Pay — بحماية MyFatoorah", payGarage: "الدفع في الورشة", payGarageHint: "ادفع بعد الغسيل", payAndConfirm: "ادفع {amount} ر.س وأكّد الحجز", redirecting: "جارٍ تحويلك إلى الدفع…", holdNote: "موعدك محجوز أثناء الدفع.",
+    title: "احجز غسيل سيارتك", inclVat: "شامل الضريبة", service: "اختر نوع الغسيل", when: "اختر اليوم والوقت", today: "اليوم", tomorrow: "غدًا",
     noSlots: "لا توجد أوقات متاحة في هذا اليوم. جرّب يومًا آخر.", slotsFailed: "تعذّر تحميل الأوقات. حاول مرة أخرى.",
     details: "بياناتك", name: "الاسم الكامل", phone: "رقم الجوال", phoneInvalid: "أدخل رقم جوال صحيح مثل 05XXXXXXXX",
     plateNums: "أرقام اللوحة", plateLetters: "حروف اللوحة", make: "ماركة السيارة", model: "الموديل", optional: "اختياري",
@@ -53,6 +55,7 @@ export default function CarWashBooking({ garageId, info }: { garageId: string; i
   const [make, setMake] = useState("");
   const [model, setModel] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [payMethod, setPayMethod] = useState<"online" | "garage">("online");
   const [error, setError] = useState("");
   const [done, setDone] = useState<{ jobNumber: string; scheduledAt: string; manageToken?: string } | null>(null);
   // Phone verification (only when the garage requires it)
@@ -84,10 +87,10 @@ export default function CarWashBooking({ garageId, info }: { garageId: string; i
   }, [garageId, date, serviceId]);
 
   const service = info.services.find((s) => s.id === serviceId);
-  const total = service ? Math.round(service.price * (1 + info.vatRate) * 100) / 100 : 0;
+  const total = service ? service.price : 0; // prices already include VAT
   const phoneOk = !!parsePhone(phone);
   const plate = [plateNums.trim(), plateLetters.trim()].filter(Boolean).join(" ");
-  const canSubmit = !!service && !!slot && name.trim().length > 1 && phoneOk && plate.length > 0 && !submitting && (!needVerify || otp === "verified");
+  const canSubmit = !!service && !!slot && name.trim().length > 1 && phoneOk && !submitting && (!needVerify || otp === "verified");
   const svcName = (s: CarWashInfo["services"][number]) => (locale === "ar" && s.nameAr ? s.nameAr : s.name);
   const fmt = (n: number) => n.toLocaleString("en-SA", { maximumFractionDigits: 2 });
   const timeLabel = (iso: string) => new Date(iso).toLocaleString(locale === "ar" ? "ar-SA" : "en-GB", { timeZone: "Asia/Riyadh", weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true });
@@ -109,6 +112,7 @@ export default function CarWashBooking({ garageId, info }: { garageId: string; i
     } catch { setOtp("sent"); setOtpError(tx.failed); }
   }
 
+  const payOnline = !!info.onlinePayment && payMethod === "online";
   async function submit() {
     if (!canSubmit || !slot) return;
     track("booking_submit", { booking_type: "car_wash" });
@@ -116,9 +120,14 @@ export default function CarWashBooking({ garageId, info }: { garageId: string; i
     try {
       const res = await fetch(`/api/car-wash/book?garageId=${garageId}`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ serviceId, slot: slot.iso, customerName: name.trim(), customerPhone: parsePhone(phone), plateNumber: plate, vehicleMake: make.trim() || undefined, vehicleModel: model.trim() || undefined, lang: locale === "ar" ? "ar" : "en", verifyToken: verifyToken || undefined }),
+        body: JSON.stringify({ serviceId, slot: slot.iso, customerName: name.trim(), customerPhone: parsePhone(phone), plateNumber: plate || undefined, vehicleMake: make.trim() || undefined, vehicleModel: model.trim() || undefined, lang: locale === "ar" ? "ar" : "en", verifyToken: verifyToken || undefined, payOnline: payOnline || undefined, returnBase: payOnline ? window.location.origin : undefined }),
       });
       const j = await res.json().catch(() => ({}));
+      if (res.ok && j.paymentUrl) {
+        void trackSignUp({ name, phone: parsePhone(phone) }, { booking_id: j.jobNumber ?? null, service: service?.name, booking_type: "car_wash", payment: "online_pending" });
+        window.location.href = j.paymentUrl; // keep the button busy while MyFatoorah loads
+        return;
+      }
       if (res.ok) {
         setDone(j);
         void trackSignUp({ name, phone: parsePhone(phone) }, { booking_id: j.jobNumber ?? null, service: service?.name, booking_type: "car_wash" });
@@ -162,7 +171,7 @@ export default function CarWashBooking({ garageId, info }: { garageId: string; i
             <button type="button" onClick={() => setServiceId(s.id)}
               className={`flex w-full items-center justify-between rounded-2xl border-2 bg-[#f4f4f5] px-4 py-3.5 text-start transition ${serviceId === s.id ? "border-[#e8201c] bg-white shadow-[0_6px_16px_rgba(232,32,28,0.15)]" : "border-transparent"}`}>
               <span className="text-[15px] font-bold">{svcName(s)}</span>
-              <span className="text-[14px] font-bold text-[#e8201c]">{fmt(s.price)} {tx.sr}</span>
+              <span className="text-end"><span className="block text-[14px] font-bold text-[#e8201c]">{fmt(s.price)} {tx.sr}</span><span className="block text-[11px] text-[#71717a]">{tx.inclVat}</span></span>
             </button>
           </li>
         ))}
@@ -219,9 +228,9 @@ export default function CarWashBooking({ garageId, info }: { garageId: string; i
           </div>
         )}
         <div className="grid grid-cols-2 gap-3">
-          <label className="block"><span className={labelCls}>{tx.plateLetters}</span>
+          <label className="block"><span className={labelCls}>{tx.plateLetters} <span className="font-normal normal-case tracking-normal text-[#a1a1aa]">({tx.optional})</span></span>
             <input className={`${inputCls} text-center font-bold tracking-[0.25em]`} dir="ltr" maxLength={4} value={plateLetters} onChange={(e) => setPlateLetters(e.target.value.toUpperCase())} /></label>
-          <label className="block"><span className={labelCls}>{tx.plateNums}</span>
+          <label className="block"><span className={labelCls}>{tx.plateNums} <span className="font-normal normal-case tracking-normal text-[#a1a1aa]">({tx.optional})</span></span>
             <input className={`${inputCls} text-center font-bold tracking-[0.25em]`} dir="ltr" inputMode="numeric" maxLength={4} value={plateNums} onChange={(e) => setPlateNums(e.target.value.replace(/\D/g, ""))} /></label>
         </div>
         <div className="grid grid-cols-2 gap-3">
@@ -235,11 +244,26 @@ export default function CarWashBooking({ garageId, info }: { garageId: string; i
             <span className="text-[#52525b]">{tx.total}</span><b className="text-[16px]">{fmt(total)} {tx.sr}</b>
           </div>
         )}
+        {service && info.onlinePayment && (
+          <div className="rounded-2xl bg-white p-4 text-[14px]">
+            <h3 className="mb-2.5 font-bold">{tx.payTitle}</h3>
+            <div role="radiogroup" className="grid gap-2">
+              {([["online", tx.payOnline, tx.payOnlineHint], ["garage", tx.payGarage, tx.payGarageHint]] as const).map(([k, label, hint]) => (
+                <button key={k} type="button" role="radio" aria-checked={payMethod === k} onClick={() => setPayMethod(k)}
+                  className={`flex items-center gap-3 rounded-xl border-2 p-3 text-start transition ${payMethod === k ? "border-[#e8201c] bg-[#fff5f5]" : "border-[#e4e4e7]"}`}>
+                  <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${payMethod === k ? "border-[#e8201c]" : "border-[#d4d4d8]"}`}>{payMethod === k && <span className="h-2.5 w-2.5 rounded-full bg-[#e8201c]" />}</span>
+                  <span className="min-w-0"><span className="block font-bold">{label}</span><span className="block text-[12px] text-[#71717a]">{hint}</span></span>
+                </button>
+              ))}
+            </div>
+            {payMethod === "online" && <p className="mt-2 text-[12px] text-[#71717a]">{tx.holdNote}</p>}
+          </div>
+        )}
         {error && <p role="alert" className="text-[14px] text-[#e8201c]">{error}</p>}
       </div>
 
       <button type="button" disabled={!canSubmit} onClick={submit} className="cta mt-4 h-12 w-full rounded-full font-bold text-white disabled:opacity-50">
-        {submitting ? tx.sending : tx.confirm}
+        {submitting ? (payOnline ? tx.redirecting : tx.sending) : payOnline ? tx.payAndConfirm.replace("{amount}", fmt(total)) : tx.confirm}
       </button>
     </div>
   );
