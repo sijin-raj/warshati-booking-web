@@ -20,7 +20,7 @@ const labelCls = "mb-1.5 block text-[12px] font-bold uppercase tracking-wide tex
 
 const TEXT = {
   en: {
-    payTitle: "How would you like to pay?", payOnline: "Pay online now", payOnlineHint: "Card, mada or Apple Pay — secured by MyFatoorah", payGarage: "Pay at the garage", payGarageHint: "Pay after the wash", payAndConfirm: "Pay {amount} SAR & confirm", redirecting: "Taking you to payment…", holdNote: "Your time is held while you pay.",
+    payOnline: "Pay online now", payOnlineHint: "Card, mada or Apple Pay — secured by MyFatoorah", payAndConfirm: "Pay {amount} SAR & confirm", redirecting: "Taking you to payment…", holdNote: "Your time is held while you pay.",
     title: "Book a car wash", inclVat: "incl. VAT", service: "Choose a wash", when: "Pick a day & time", today: "Today", tomorrow: "Tomorrow",
     noSlots: "No free times on this day. Try another day.", slotsFailed: "Couldn't load times. Please try again.",
     details: "Your details", name: "Full name", phone: "Mobile number", phoneInvalid: "Enter a valid mobile number, e.g. 05XXXXXXXX",
@@ -29,7 +29,7 @@ const TEXT = {
     verifyBtn: "Send code", verifySent: "We sent a 6-digit code to your WhatsApp.", codeLabel: "Verification code", confirmCode: "Verify", verified: "Number verified", wrongPhoneEdit: "Change number", resend: "Resend code", verifyNeeded: "Verify your number to continue", manage: "Change or cancel booking", doneTitle: "You're booked!", doneBody: "Please arrive at your time. Pay at the garage after the wash.", ref: "Booking no.", another: "Make another booking",
   },
   ar: {
-    payTitle: "كيف تريد الدفع؟", payOnline: "ادفع الآن عبر الإنترنت", payOnlineHint: "بطاقة أو مدى أو Apple Pay — بحماية MyFatoorah", payGarage: "الدفع في الورشة", payGarageHint: "ادفع بعد الغسيل", payAndConfirm: "ادفع {amount} ر.س وأكّد الحجز", redirecting: "جارٍ تحويلك إلى الدفع…", holdNote: "موعدك محجوز أثناء الدفع.",
+    payOnline: "ادفع الآن عبر الإنترنت", payOnlineHint: "بطاقة أو مدى أو Apple Pay — بحماية MyFatoorah", payAndConfirm: "ادفع {amount} ر.س وأكّد الحجز", redirecting: "جارٍ تحويلك إلى الدفع…", holdNote: "موعدك محجوز أثناء الدفع.",
     title: "احجز غسيل سيارتك", inclVat: "شامل الضريبة", service: "اختر نوع الغسيل", when: "اختر اليوم والوقت", today: "اليوم", tomorrow: "غدًا",
     noSlots: "لا توجد أوقات متاحة في هذا اليوم. جرّب يومًا آخر.", slotsFailed: "تعذّر تحميل الأوقات. حاول مرة أخرى.",
     details: "بياناتك", name: "الاسم الكامل", phone: "رقم الجوال", phoneInvalid: "أدخل رقم جوال صحيح مثل 05XXXXXXXX",
@@ -55,7 +55,6 @@ export default function CarWashBooking({ garageId, info }: { garageId: string; i
   const [make, setMake] = useState("");
   const [model, setModel] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [payMethod, setPayMethod] = useState<"online" | "garage">("online");
   const [error, setError] = useState("");
   const [done, setDone] = useState<{ jobNumber: string; scheduledAt: string; manageToken?: string } | null>(null);
   // Phone verification (only when the garage requires it)
@@ -112,7 +111,7 @@ export default function CarWashBooking({ garageId, info }: { garageId: string; i
     } catch { setOtp("sent"); setOtpError(tx.failed); }
   }
 
-  const payOnline = !!info.onlinePayment && payMethod === "online";
+  const payOnline = !!info.onlinePayment;
   async function submit() {
     if (!canSubmit || !slot) return;
     track("booking_submit", { booking_type: "car_wash" });
@@ -246,17 +245,9 @@ export default function CarWashBooking({ garageId, info }: { garageId: string; i
         )}
         {service && info.onlinePayment && (
           <div className="rounded-2xl bg-white p-4 text-[14px]">
-            <h3 className="mb-2.5 font-bold">{tx.payTitle}</h3>
-            <div role="radiogroup" className="grid gap-2">
-              {([["online", tx.payOnline, tx.payOnlineHint], ["garage", tx.payGarage, tx.payGarageHint]] as const).map(([k, label, hint]) => (
-                <button key={k} type="button" role="radio" aria-checked={payMethod === k} onClick={() => setPayMethod(k)}
-                  className={`flex items-center gap-3 rounded-xl border-2 p-3 text-start transition ${payMethod === k ? "border-[#e8201c] bg-[#fff5f5]" : "border-[#e4e4e7]"}`}>
-                  <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${payMethod === k ? "border-[#e8201c]" : "border-[#d4d4d8]"}`}>{payMethod === k && <span className="h-2.5 w-2.5 rounded-full bg-[#e8201c]" />}</span>
-                  <span className="min-w-0"><span className="block font-bold">{label}</span><span className="block text-[12px] text-[#71717a]">{hint}</span></span>
-                </button>
-              ))}
-            </div>
-            {payMethod === "online" && <p className="mt-2 text-[12px] text-[#71717a]">{tx.holdNote}</p>}
+            <h3 className="font-bold">{tx.payOnline}</h3>
+            <p className="text-[12px] text-[#71717a]">{tx.payOnlineHint}</p>
+            <p className="mt-2 text-[12px] text-[#71717a]">{tx.holdNote}</p>
           </div>
         )}
         {error && <p role="alert" className="text-[14px] text-[#e8201c]">{error}</p>}
