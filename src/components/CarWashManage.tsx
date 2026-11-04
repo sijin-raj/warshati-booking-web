@@ -17,7 +17,8 @@ const riyadhDate = (offsetDays: number) => new Date(Date.now() + 3 * 3600_000 + 
 
 const TEXT = {
   en: {
-    title: "Your car wash booking", loading: "Loading…", notFound: "We couldn't find this booking.", ref: "Booking no.", when: "Time", plate: "Plate",
+    title: "Your car wash booking", loading: "Loading…", notFound: "We couldn't find this booking.", notFoundHint: "The link may be old or incomplete.", newBooking: "Make a new booking",
+    total: "Total", payment: "Payment", statusPaid: "Paid", statusUnpaid: "Pay at the garage", statusAwaiting: "Awaiting payment", sar: "SAR", min: "min", ref: "Booking no.", when: "Time", plate: "Plate",
     cancelled: "This booking was cancelled.", done: "This booking is completed.", inProgress: "Your car is already with us — this booking can't be changed online.",
     tooLate: (m: number) => `Changes are possible up to ${m} minutes before your time. Please call us.`,
     change: "Change time", cancel: "Cancel booking", confirmCancel: "Yes, cancel it", keep: "Keep booking", sure: "Cancel this booking?",
@@ -28,7 +29,8 @@ const TEXT = {
     confirming: "We're confirming your payment…", checkAgain: "Check again", payFailed: "The payment didn't go through. Your booking is not confirmed.", paidCancelNote: "You paid online — please contact the garage about your payment.",
   },
   ar: {
-    title: "حجز غسيل سيارتك", loading: "جارٍ التحميل…", notFound: "لم نتمكن من العثور على هذا الحجز.", ref: "رقم الحجز", when: "الموعد", plate: "اللوحة",
+    title: "حجز غسيل سيارتك", loading: "جارٍ التحميل…", notFound: "لم نتمكن من العثور على هذا الحجز.", notFoundHint: "قد يكون الرابط قديمًا أو غير مكتمل.", newBooking: "احجز موعدًا جديدًا",
+    total: "الإجمالي", payment: "الدفع", statusPaid: "مدفوع", statusUnpaid: "الدفع في الورشة", statusAwaiting: "بانتظار الدفع", sar: "ر.س", min: "دقيقة", ref: "رقم الحجز", when: "الموعد", plate: "اللوحة",
     cancelled: "تم إلغاء هذا الحجز.", done: "هذا الحجز مكتمل.", inProgress: "سيارتك لدينا بالفعل — لا يمكن تعديل هذا الحجز عبر الإنترنت.",
     tooLate: (m: number) => `يمكن التعديل حتى ${m} دقيقة قبل الموعد. يرجى الاتصال بنا.`,
     change: "تغيير الموعد", cancel: "إلغاء الحجز", confirmCancel: "نعم، إلغاء", keep: "إبقاء الحجز", sure: "هل تريد إلغاء هذا الحجز؟",
@@ -91,7 +93,6 @@ export default function CarWashManage({ token }: { token: string }) {
     return () => { live = false; };
   }, [mode, date, token]);
 
-  const when = (iso: string) => new Date(iso).toLocaleString(locale === "ar" ? "ar-SA" : "en-GB", { timeZone: "Asia/Riyadh", weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true });
   const dayLabel = (d: string, i: number) => (i === 0 ? tx.today : i === 1 ? tx.tomorrow : new Date(`${d}T12:00:00Z`).toLocaleDateString(locale === "ar" ? "ar-SA" : "en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }));
 
   async function act(path: "cancel" | "reschedule") {
@@ -115,40 +116,85 @@ export default function CarWashManage({ token }: { token: string }) {
     </div>
   );
 
-  if (state === "loading") return shell(<p className="text-[14px] text-[#71717a]">{tx.loading}</p>);
-  if (state === "missing" || !b) return shell(<p className="rounded-2xl bg-[#f4f4f5] p-5 text-[15px]">{tx.notFound}</p>);
+  if (state === "loading") return shell(
+    <div className="space-y-2.5" aria-busy="true" aria-label={tx.loading}>
+      <div className="h-52 animate-pulse rounded-2xl bg-[#f4f4f5]" />
+      <div className="h-12 animate-pulse rounded-full bg-[#f4f4f5]" />
+    </div>,
+  );
+  if (state === "missing" || !b) return shell(
+    <div className="rounded-2xl bg-[#f4f4f5] p-5">
+      <p className="text-[17px] font-extrabold">{tx.notFound}</p>
+      <p className="mt-1 text-[14px] text-[#52525b]">{tx.notFoundHint}</p>
+      <a href="/" className="cta mt-4 inline-flex h-12 items-center rounded-full px-6 font-bold text-white">{tx.newBooking}</a>
+    </div>,
+  );
 
+  const lng = locale === "ar" ? "ar-SA" : "en-GB";
   const dates = Array.from({ length: b.daysAhead + 1 }, (_, i) => riyadhDate(i));
+  const closed = b.status === "cancelled" || b.status === "expired";
+  const paidOnline = b.paymentStatus === "paid" && !!b.onlinePayment;
   const note = b.status === "cancelled" ? tx.cancelled : b.status === "expired" ? tx.expired : b.status === "booked" || b.status === "pending_payment" ? null : ["delivered", "no_show"].includes(b.status) ? tx.done : tx.inProgress;
+  const dayText = b.scheduledAt ? new Date(b.scheduledAt).toLocaleDateString(lng, { timeZone: "Asia/Riyadh", weekday: "long", day: "numeric", month: "long" }) : "";
+  const timeText = b.scheduledAt ? new Date(b.scheduledAt).toLocaleTimeString(lng, { timeZone: "Asia/Riyadh", hour: "numeric", minute: "2-digit", hour12: true }) : "";
+  const payText = b.paymentStatus === "paid" ? tx.statusPaid : b.payUrl ? tx.statusAwaiting : tx.statusUnpaid;
+  const payTone = b.paymentStatus === "paid" ? "text-emerald-700" : b.payUrl ? "text-amber-700" : "text-[#18181b]";
+  const tile = "rounded-xl bg-white px-3.5 py-3";
+  const tileLabel = "block text-[12px] text-[#71717a]";
 
   return shell(
     <>
       {result && (
-        <div className="mb-4 flex items-center gap-2 rounded-2xl bg-emerald-50 p-4 text-[14px] font-bold text-emerald-700"><Check className="h-5 w-5" />{result === "updated" ? tx.savedTitle : tx.cancelledTitle}</div>
+        <div role="status" className="mb-3 flex items-center gap-2 rounded-2xl bg-emerald-50 p-4 text-[14px] font-bold text-emerald-700"><Check className="h-5 w-5 shrink-0" />{result === "updated" ? tx.savedTitle : tx.cancelledTitle}</div>
       )}
-      <div className="space-y-2 rounded-2xl bg-[#f4f4f5] p-4 text-[15px]">
-        <p className="text-[12px] font-bold uppercase tracking-wide text-[#71717a]">{b.garageName}</p>
-        <p className="text-[17px] font-extrabold capitalize">{b.service}</p>
-        {b.scheduledAt && <p className="flex items-center gap-2"><CalendarClock className="h-4 w-4 text-[#e8201c]" /><b>{when(b.scheduledAt)}</b></p>}
-        <p className="text-[#52525b]">{tx.plate}: <b>{b.plateNumber}</b> · {tx.ref}: <b>{b.jobNumber}</b></p>
-      </div>
 
-      {b.paymentStatus === "paid" && b.onlinePayment && (
-        <div className="mt-4 flex items-start gap-2 rounded-2xl bg-emerald-50 p-4 text-[14px] text-emerald-800"><Check className="mt-0.5 h-5 w-5 shrink-0" /><div><p className="font-bold">{tx.paid}</p><p>{tx.paidSub((b.total ?? 0).toFixed(2))}</p></div></div>
+      {/* Where the booking stands, before anything else. */}
+      {note && (
+        <div role="status" className="mb-3 rounded-2xl bg-[#f4f4f5] p-4 text-[14px] text-[#3f3f46]">
+          <p className="flex items-start gap-2 font-bold">{closed && <X className="mt-0.5 h-5 w-5 shrink-0 text-[#71717a]" />}{note}</p>
+          {closed && paidOnline && <p className="mt-1.5 ps-7 text-[13px] font-normal text-[#52525b]">{tx.paidCancelNote}</p>}
+        </div>
       )}
-      {checking && b.paymentStatus !== "paid" && <p className="mt-4 rounded-2xl bg-[#f4f4f5] p-4 text-[14px] text-[#52525b]">{tx.confirming}</p>}
+      {paidOnline && !closed && (
+        <div role="status" className="mb-3 flex items-start gap-2 rounded-2xl bg-emerald-50 p-4 text-[14px] text-emerald-800"><Check className="mt-0.5 h-5 w-5 shrink-0" /><div><p className="font-bold">{tx.paid}</p><p>{tx.paidSub((b.total ?? 0).toFixed(2))}</p></div></div>
+      )}
+      {checking && b.paymentStatus !== "paid" && <p role="status" className="mb-3 rounded-2xl bg-[#f4f4f5] p-4 text-[14px] text-[#52525b]">{tx.confirming}</p>}
       {!checking && b.paymentStatus !== "paid" && b.payUrl && (
-        <div className="mt-4 rounded-2xl bg-amber-50 p-4 text-[14px] text-amber-900">
+        <div className="mb-3 rounded-2xl bg-amber-50 p-4 text-[14px] text-amber-900">
           <p className="font-bold">{tx.payDue}</p>
           {payOutcome === "failed" && <p className="mt-1 text-[#e8201c]">{tx.payFailed}</p>}
-          {b.payExpiresAt && <p className="mt-1 text-[13px]">{tx.payUntil(new Date(b.payExpiresAt).toLocaleTimeString(locale === "ar" ? "ar-SA" : "en-GB", { timeZone: "Asia/Riyadh", hour: "numeric", minute: "2-digit", hour12: true }))}</p>}
+          {b.payExpiresAt && <p className="mt-1 text-[13px]">{tx.payUntil(new Date(b.payExpiresAt).toLocaleTimeString(lng, { timeZone: "Asia/Riyadh", hour: "numeric", minute: "2-digit", hour12: true }))}</p>}
           <div className="mt-3 grid grid-cols-2 gap-2.5">
             <a href={b.payUrl} className="cta flex h-12 items-center justify-center rounded-full font-bold text-white">{tx.payNow}</a>
             <button type="button" onClick={() => verifyPayment()} className="h-12 rounded-full bg-white font-bold">{tx.checkAgain}</button>
           </div>
         </div>
       )}
-      {note && <p className="mt-4 rounded-2xl bg-[#f4f4f5] p-4 text-[14px] text-[#52525b]">{note}</p>}
+
+      {/* The booking: the appointment is the biggest thing on the screen. */}
+      <section className={`rounded-2xl bg-[#f4f4f5] p-3.5 ${closed ? "opacity-70" : ""}`}>
+        <div className="rounded-xl bg-white p-4">
+          <p className="text-[13px] text-[#71717a]">{b.garageName}</p>
+          <h2 className="mt-0.5 text-[20px] font-extrabold capitalize leading-tight">{b.service}</h2>
+          {b.scheduledAt && (
+            <div className="mt-4 flex items-end justify-between gap-3">
+              <div>
+                <p className="text-[36px] font-extrabold leading-none tracking-tight">{timeText}</p>
+                <p className="mt-2 flex items-center gap-1.5 text-[15px] font-bold text-[#3f3f46]"><CalendarClock className="h-4 w-4 shrink-0 text-[#e8201c]" />{dayText}</p>
+              </div>
+              <p className="shrink-0 pb-0.5 text-[13px] text-[#71717a]">{b.durationMin} {tx.min}</p>
+            </div>
+          )}
+        </div>
+        <dl className="mt-2.5 grid grid-cols-2 gap-2.5">
+          <div className={tile}><dt className={tileLabel}>{tx.ref}</dt><dd className="mt-0.5 text-[15px] font-bold" dir="ltr">{b.jobNumber}</dd></div>
+          {b.plateNumber && <div className={tile}><dt className={tileLabel}>{tx.plate}</dt><dd className="mt-0.5 text-[15px] font-bold" dir="ltr">{b.plateNumber}</dd></div>}
+          {typeof b.total === "number" && <div className={tile}><dt className={tileLabel}>{tx.total}</dt><dd className="mt-0.5 text-[15px] font-bold">{b.total.toFixed(2)} {tx.sar}</dd></div>}
+          {(!closed || b.paymentStatus === "paid") && <div className={tile}><dt className={tileLabel}>{tx.payment}</dt><dd className={`mt-0.5 text-[15px] font-bold ${payTone}`}>{payText}</dd></div>}
+        </dl>
+      </section>
+
+      {closed && <a href="/" className="cta mt-4 flex h-12 items-center justify-center rounded-full font-bold text-white">{tx.newBooking}</a>}
       {!note && !b.canChange && b.status !== "pending_payment" && <p className="mt-4 rounded-2xl bg-amber-50 p-4 text-[14px] text-amber-800">{tx.tooLate(b.cancelWindowMin)}</p>}
 
       {b.canChange && mode === "view" && (
@@ -160,7 +206,7 @@ export default function CarWashManage({ token }: { token: string }) {
       {b.canChange && b.canCancel === false && b.paymentStatus === "paid" && <p className="mt-3 text-[13px] text-[#52525b]">{tx.paidCancelNote}</p>}
 
       {b.canChange && mode === "cancel" && (
-        <div className="mt-4 rounded-2xl bg-[#f4f4f5] p-4">
+        <div className="mt-4 rounded-2xl bg-[#f4f4f5] p-3.5">
           <p className="mb-3 text-[15px] font-bold">{tx.sure}</p>
           {b.paymentStatus === "paid" && b.onlinePayment && <p className="mb-3 text-[13px] text-[#52525b]">{tx.paidCancelNote}</p>}
           <div className="grid grid-cols-2 gap-2.5">
@@ -172,7 +218,7 @@ export default function CarWashManage({ token }: { token: string }) {
       )}
 
       {b.canChange && mode === "change" && (
-        <div className="mt-4">
+        <div className="mt-6">
           <h2 className="mb-2.5 text-[15px] font-bold">{tx.pick}</h2>
           <div className="rounded-2xl bg-[#f4f4f5] p-3.5">
             <div className="no-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
