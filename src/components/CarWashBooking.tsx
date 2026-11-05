@@ -22,6 +22,7 @@ const TEXT = {
   en: {
     payOnline: "Pay online now", payOnlineHint: "Card, mada or Apple Pay — secured by MyFatoorah", payAndConfirm: "Pay {amount} SAR & confirm", redirecting: "Taking you to payment…", holdNote: "Your time is held while you pay.",
     title: "Book a car wash", inclVat: "incl. VAT", service: "Choose a wash", when: "Pick a day & time", today: "Today", tomorrow: "Tomorrow",
+    lateNote: "This wash takes a while, so the latest start is {last}. Later times are hidden because it would finish after closing.",
     noSlots: "No free times on this day. Try another day.", slotsFailed: "Couldn't load times. Please try again.",
     details: "Your details", name: "Full name", phone: "Mobile number", phoneInvalid: "Enter a valid mobile number, e.g. 05XXXXXXXX",
     plateNums: "Plate numbers", plateLetters: "Plate letters", make: "Car make", model: "Model", optional: "optional",
@@ -31,6 +32,7 @@ const TEXT = {
   ar: {
     payOnline: "ادفع الآن عبر الإنترنت", payOnlineHint: "بطاقة أو مدى أو Apple Pay — بحماية MyFatoorah", payAndConfirm: "ادفع {amount} ر.س وأكّد الحجز", redirecting: "جارٍ تحويلك إلى الدفع…", holdNote: "موعدك محجوز أثناء الدفع.",
     title: "احجز غسيل سيارتك", inclVat: "شامل الضريبة", service: "اختر نوع الغسيل", when: "اختر اليوم والوقت", today: "اليوم", tomorrow: "غدًا",
+    lateNote: "هذا الغسيل يستغرق وقتًا، لذا آخر وقت للبدء هو {last}. الأوقات الأحدث مخفية لأنه سينتهي بعد الإغلاق.",
     noSlots: "لا توجد أوقات متاحة في هذا اليوم. جرّب يومًا آخر.", slotsFailed: "تعذّر تحميل الأوقات. حاول مرة أخرى.",
     details: "بياناتك", name: "الاسم الكامل", phone: "رقم الجوال", phoneInvalid: "أدخل رقم جوال صحيح مثل 05XXXXXXXX",
     plateNums: "أرقام اللوحة", plateLetters: "حروف اللوحة", make: "ماركة السيارة", model: "الموديل", optional: "اختياري",
@@ -46,6 +48,7 @@ export default function CarWashBooking({ garageId, info }: { garageId: string; i
   const [date, setDate] = useState(riyadhDate(0));
   const [slots, setSlots] = useState<Slot[] | null>(null);
   const [slotsError, setSlotsError] = useState(false);
+  const [lastStart, setLastStart] = useState<string | null>(null);
   const [slot, setSlot] = useState<Slot | null>(null);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -77,10 +80,10 @@ export default function CarWashBooking({ garageId, info }: { garageId: string; i
 
   useEffect(() => {
     let live = true;
-    setSlots(null); setSlotsError(false); setSlot(null);
+    setSlots(null); setSlotsError(false); setSlot(null); setLastStart(null);
     fetch(`/api/car-wash/slots?garageId=${garageId}&date=${date}${serviceId ? `&serviceId=${serviceId}` : ""}`)
       .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((j) => { if (live) setSlots(j.slots ?? []); })
+      .then((j) => { if (live) { setSlots(j.slots ?? []); setLastStart(j.cutoff?.lastStart ?? null); } })
       .catch(() => { if (live) { setSlots([]); setSlotsError(true); } });
     return () => { live = false; };
   }, [garageId, date, serviceId]);
@@ -195,6 +198,7 @@ export default function CarWashBooking({ garageId, info }: { garageId: string; i
                 ))}
               </div>
             ) : <p className="text-[14px] text-[#71717a]">{tx.noSlots}</p>}
+          {lastStart && slots && slots.length > 0 && <p className="mt-2 text-[12px] text-[#71717a]">{tx.lateNote.replace("{last}", to12(lastStart))}</p>}
         </div>
       </div>
 
