@@ -55,6 +55,8 @@ export interface CarWashInfo {
   verifyPhone?: boolean;
   /** True when the garage has MyFatoorah set up, so the customer can pay on the website. */
   onlinePayment?: boolean;
+  /** Online-paid bookings are non-refundable: the customer must accept this to pay. */
+  nonRefundable?: boolean;
   services: { id: number; name: string; nameAr: string | null; price: number; durationMin: number }[];
 }
 

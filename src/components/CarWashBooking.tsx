@@ -20,7 +20,7 @@ const labelCls = "mb-1.5 block text-[12px] font-bold uppercase tracking-wide tex
 
 const TEXT = {
   en: {
-    payOnline: "Pay online now", payOnlineHint: "Card, mada or Apple Pay — secured by MyFatoorah", payAndConfirm: "Pay {amount} SAR & confirm", redirecting: "Taking you to payment…", holdNote: "Your time is held while you pay.",
+    payOnline: "Pay online now", payOnlineHint: "Card, mada or Apple Pay — secured by MyFatoorah", payAndConfirm: "Pay {amount} SAR & confirm", redirecting: "Taking you to payment…", holdNote: "Your time is held while you pay.", termsLink: "Terms & policy", policyAgree: "I understand this booking is non-refundable. I can reschedule it once; if I miss the new time too, the amount is not refunded.",
     title: "Book a car wash", inclVat: "incl. VAT", service: "Choose a wash", when: "Pick a day & time", today: "Today", tomorrow: "Tomorrow",
     lateNote: "This wash takes a while, so the latest start is {last}. Later times are hidden because it would finish after closing.",
     noSlots: "No free times on this day. Try another day.", slotsFailed: "Couldn't load times. Please try again.",
@@ -30,7 +30,7 @@ const TEXT = {
     verifyBtn: "Send code", verifySent: "We sent a 6-digit code to your WhatsApp.", codeLabel: "Verification code", confirmCode: "Verify", verified: "Number verified", wrongPhoneEdit: "Change number", resend: "Resend code", verifyNeeded: "Verify your number to continue", manage: "Change or cancel booking", doneTitle: "You're booked!", doneBody: "Please arrive at your time. Pay at the garage after the wash.", ref: "Booking no.", another: "Make another booking",
   },
   ar: {
-    payOnline: "ادفع الآن عبر الإنترنت", payOnlineHint: "بطاقة أو مدى أو Apple Pay — بحماية MyFatoorah", payAndConfirm: "ادفع {amount} ر.س وأكّد الحجز", redirecting: "جارٍ تحويلك إلى الدفع…", holdNote: "موعدك محجوز أثناء الدفع.",
+    payOnline: "ادفع الآن عبر الإنترنت", payOnlineHint: "بطاقة أو مدى أو Apple Pay — بحماية MyFatoorah", payAndConfirm: "ادفع {amount} ر.س وأكّد الحجز", redirecting: "جارٍ تحويلك إلى الدفع…", holdNote: "موعدك محجوز أثناء الدفع.", termsLink: "الشروط والسياسة", policyAgree: "أفهم أن هذا الحجز غير قابل للاسترداد. يمكنني تغيير الموعد مرة واحدة، وإذا لم أحضر في الموعد الجديد فلن يُسترد المبلغ.",
     title: "احجز غسيل سيارتك", inclVat: "شامل الضريبة", service: "اختر نوع الغسيل", when: "اختر اليوم والوقت", today: "اليوم", tomorrow: "غدًا",
     lateNote: "هذا الغسيل يستغرق وقتًا، لذا آخر وقت للبدء هو {last}. الأوقات الأحدث مخفية لأنه سينتهي بعد الإغلاق.",
     noSlots: "لا توجد أوقات متاحة في هذا اليوم. جرّب يومًا آخر.", slotsFailed: "تعذّر تحميل الأوقات. حاول مرة أخرى.",
@@ -59,6 +59,7 @@ export default function CarWashBooking({ garageId, info }: { garageId: string; i
   const [model, setModel] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [agree, setAgree] = useState(false);
   const [done, setDone] = useState<{ jobNumber: string; scheduledAt: string; manageToken?: string } | null>(null);
   // Phone verification (only when the garage requires it)
   const [otp, setOtp] = useState<"idle" | "sending" | "sent" | "verifying" | "verified">("idle");
@@ -92,7 +93,7 @@ export default function CarWashBooking({ garageId, info }: { garageId: string; i
   const total = service ? service.price : 0; // prices already include VAT
   const phoneOk = !!parsePhone(phone);
   const plate = [plateNums.trim(), plateLetters.trim()].filter(Boolean).join(" ");
-  const canSubmit = !!service && !!slot && name.trim().length > 1 && phoneOk && !submitting && (!needVerify || otp === "verified");
+  const canSubmit = !!service && !!slot && name.trim().length > 1 && phoneOk && !submitting && (!needVerify || otp === "verified") && (!(info.onlinePayment && info.nonRefundable) || agree);
   const svcName = (s: CarWashInfo["services"][number]) => (locale === "ar" && s.nameAr ? s.nameAr : s.name);
   const fmt = (n: number) => n.toLocaleString("en-SA", { maximumFractionDigits: 2 });
   const timeLabel = (iso: string) => new Date(iso).toLocaleString(locale === "ar" ? "ar-SA" : "en-GB", { timeZone: "Asia/Riyadh", weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true });
@@ -122,7 +123,7 @@ export default function CarWashBooking({ garageId, info }: { garageId: string; i
     try {
       const res = await fetch(`/api/car-wash/book?garageId=${garageId}`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ serviceId, slot: slot.iso, customerName: name.trim(), customerPhone: parsePhone(phone), plateNumber: plate || undefined, vehicleMake: make.trim() || undefined, vehicleModel: model.trim() || undefined, lang: locale === "ar" ? "ar" : "en", verifyToken: verifyToken || undefined, payOnline: payOnline || undefined, returnBase: payOnline ? window.location.origin : undefined }),
+        body: JSON.stringify({ serviceId, slot: slot.iso, customerName: name.trim(), customerPhone: parsePhone(phone), plateNumber: plate || undefined, vehicleMake: make.trim() || undefined, vehicleModel: model.trim() || undefined, lang: locale === "ar" ? "ar" : "en", verifyToken: verifyToken || undefined, payOnline: payOnline || undefined, acceptPolicy: payOnline && info.nonRefundable ? true : undefined, returnBase: payOnline ? window.location.origin : undefined }),
       });
       const j = await res.json().catch(() => ({}));
       if (res.ok && j.paymentUrl) {
@@ -253,6 +254,12 @@ export default function CarWashBooking({ garageId, info }: { garageId: string; i
             <p className="text-[12px] text-[#71717a]">{tx.payOnlineHint}</p>
             <p className="mt-2 text-[12px] text-[#71717a]">{tx.holdNote}</p>
           </div>
+        )}
+        {service && info.onlinePayment && info.nonRefundable && (
+          <label className="flex cursor-pointer items-start gap-2.5 rounded-2xl bg-white p-4 text-[13px] leading-relaxed text-[#3f3f46]">
+            <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} className="mt-0.5 h-5 w-5 shrink-0 accent-[#e8201c]" />
+            <span>{tx.policyAgree} <a href="/terms" target="_blank" rel="noopener" className="font-bold text-[#e8201c] underline">{tx.termsLink}</a></span>
+          </label>
         )}
         {error && <p role="alert" className="text-[14px] text-[#e8201c]">{error}</p>}
       </div>

@@ -8,7 +8,9 @@ import LanguageSwitcher from "./LanguageSwitcher";
 interface Booking {
   jobNumber: string; status: string; plateNumber: string | null; service: string; scheduledAt: string | null; durationMin: number;
   garageName: string; daysAhead: number; cancelWindowMin: number; canChange: boolean; reason: "status" | "too_late" | null;
-  paymentStatus?: string; canCancel?: boolean; total?: number; onlinePayment?: boolean; payUrl?: string | null; payExpiresAt?: string | null;
+  paymentStatus?: string; canCancel?: boolean;
+  canReschedule?: boolean; rescheduleReason?: "status" | "too_late" | "limit" | "forfeited" | null; graceOpen?: boolean; graceExpiresAt?: string | null; forfeited?: boolean; nonRefundable?: boolean; reschedulesLeft?: number;
+  total?: number; onlinePayment?: boolean; payUrl?: string | null; payExpiresAt?: string | null;
 }
 interface Slot { time: string; iso: string; available: boolean; current: boolean }
 
@@ -26,6 +28,12 @@ const TEXT = {
     savedTitle: "Booking updated", cancelledTitle: "Booking cancelled", back: "Back", failed: "Something went wrong. Please try again.",
     expired: "This booking expired because the payment wasn't completed. Please make a new booking.",
     paid: "Payment received", paidSub: (a: string) => `${a} SAR paid online. See you at your time!`, payDue: "Complete your payment to confirm this booking.", payNow: "Pay now", payUntil: (t: string) => `Your time is held until ${t}.`,
+    nonRefundable: "Non-refundable booking: the amount paid is not refunded if you cancel or miss your time.",
+    limitUsed: "You've already rescheduled this booking once, so it can't be changed again online. Please contact the garage.",
+    missed: "We missed you at your booked time.", missedHint: "Choose a new time below. You can do this once — if you miss the new time too, the amount is non-refundable.",
+    forfeited: "This booking was missed twice, so it can't be rescheduled. The amount paid is non-refundable.",
+    terms: "Booking policy & terms",
+    onceHint: "You can reschedule once.", linkUntil: (t: string) => `This link works once, until ${t}.`,
     confirming: "We're confirming your payment…", checkAgain: "Check again", payFailed: "The payment didn't go through. Your booking is not confirmed.", paidCancelNote: "You paid online — please contact the garage about your payment.",
   },
   ar: {
@@ -38,6 +46,12 @@ const TEXT = {
     savedTitle: "تم تحديث الحجز", cancelledTitle: "تم إلغاء الحجز", back: "رجوع", failed: "حدث خطأ. حاول مرة أخرى.",
     expired: "انتهت صلاحية هذا الحجز لأن الدفع لم يكتمل. يرجى إجراء حجز جديد.",
     paid: "تم استلام الدفع", paidSub: (a: string) => `تم دفع ${a} ر.س عبر الإنترنت. نراك في موعدك!`, payDue: "أكمل الدفع لتأكيد هذا الحجز.", payNow: "ادفع الآن", payUntil: (t: string) => `موعدك محجوز حتى ${t}.`,
+    nonRefundable: "الحجز غير قابل للاسترداد: لا يُسترد المبلغ المدفوع عند الإلغاء أو عدم الحضور في الموعد.",
+    limitUsed: "لقد أعدت جدولة هذا الحجز مرة واحدة، ولا يمكن تغييره مرة أخرى عبر الإنترنت. يرجى التواصل مع الورشة.",
+    missed: "لم نتمكن من استقبالك في موعد حجزك.", missedHint: "اختر موعدًا جديدًا أدناه. يمكنك ذلك مرة واحدة فقط — وإذا لم تحضر في الموعد الجديد أيضًا فلن يكون المبلغ قابلًا للاسترداد.",
+    forfeited: "لم تحضر في موعدين، لذلك لا يمكن إعادة جدولة هذا الحجز. المبلغ المدفوع غير قابل للاسترداد.",
+    terms: "سياسة الحجز والشروط",
+    onceHint: "يمكنك تغيير الموعد مرة واحدة.", linkUntil: (t: string) => `هذا الرابط يعمل مرة واحدة حتى ${t}.`,
     confirming: "نتحقق من عملية الدفع…", checkAgain: "تحقق مرة أخرى", payFailed: "لم تكتمل عملية الدفع. حجزك غير مؤكد.", paidCancelNote: "لقد دفعت عبر الإنترنت — يرجى التواصل مع الورشة بخصوص المبلغ.",
   },
 } as const;
@@ -134,7 +148,8 @@ export default function CarWashManage({ token }: { token: string }) {
   const dates = Array.from({ length: b.daysAhead + 1 }, (_, i) => riyadhDate(i));
   const closed = b.status === "cancelled" || b.status === "expired";
   const paidOnline = b.paymentStatus === "paid" && !!b.onlinePayment;
-  const note = b.status === "cancelled" ? tx.cancelled : b.status === "expired" ? tx.expired : b.status === "booked" || b.status === "pending_payment" ? null : ["delivered", "no_show"].includes(b.status) ? tx.done : tx.inProgress;
+  const canResched = b.canReschedule ?? b.canChange;
+  const note = b.forfeited ? tx.forfeited : b.graceOpen ? null : b.status === "cancelled" ? tx.cancelled : b.status === "expired" ? tx.expired : b.status === "booked" || b.status === "pending_payment" ? null : ["delivered", "no_show"].includes(b.status) ? tx.done : tx.inProgress;
   const dayText = b.scheduledAt ? new Date(b.scheduledAt).toLocaleDateString(lng, { timeZone: "Asia/Riyadh", weekday: "long", day: "numeric", month: "long" }) : "";
   const timeText = b.scheduledAt ? new Date(b.scheduledAt).toLocaleTimeString(lng, { timeZone: "Asia/Riyadh", hour: "numeric", minute: "2-digit", hour12: true }) : "";
   const payText = b.paymentStatus === "paid" ? tx.statusPaid : b.payUrl ? tx.statusAwaiting : tx.statusUnpaid;
@@ -194,13 +209,24 @@ export default function CarWashManage({ token }: { token: string }) {
         </dl>
       </section>
 
+      <p className="mt-5 text-center text-[13px]"><a href="/terms" className="font-bold text-[#e8201c] underline">{tx.terms}</a></p>
       {closed && <a href="/" className="cta mt-4 flex h-12 items-center justify-center rounded-full font-bold text-white">{tx.newBooking}</a>}
-      {!note && !b.canChange && b.status !== "pending_payment" && <p className="mt-4 rounded-2xl bg-amber-50 p-4 text-[14px] text-amber-800">{tx.tooLate(b.cancelWindowMin)}</p>}
+      {b.graceOpen && !b.forfeited && (
+        <div role="status" className="mt-4 rounded-2xl bg-amber-50 p-4 text-[14px] text-amber-900">
+          <p className="font-bold">{tx.missed}</p><p className="mt-1">{tx.missedHint}</p>
+          {b.graceExpiresAt && <p className="mt-1 text-[13px]">{tx.linkUntil(new Date(b.graceExpiresAt).toLocaleString(lng, { timeZone: "Asia/Riyadh", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true }))}</p>}
+        </div>
+      )}
+      {!note && !b.graceOpen && !canResched && b.status === "booked" && (
+        <p className="mt-4 rounded-2xl bg-amber-50 p-4 text-[14px] text-amber-800">{b.rescheduleReason === "limit" ? tx.limitUsed : tx.tooLate(b.cancelWindowMin)}</p>
+      )}
+      {b.nonRefundable && !closed && !b.forfeited && <p className="mt-4 rounded-2xl bg-[#f4f4f5] p-3.5 text-[13px] leading-relaxed text-[#52525b]">{tx.nonRefundable}</p>}
 
-      {b.canChange && mode === "view" && (
+      {(canResched || b.canChange) && mode === "view" && (
         <div className="mt-4 grid gap-2.5">
-          <button type="button" onClick={() => { setMode("change"); setResult(null); setError(""); }} className="cta h-12 rounded-full font-bold text-white">{tx.change}</button>
-          {b.canCancel !== false && <button type="button" onClick={() => { setMode("cancel"); setResult(null); setError(""); }} className="h-12 rounded-full bg-[#f4f4f5] font-bold text-[#e8201c]">{tx.cancel}</button>}
+          {canResched && <button type="button" onClick={() => { setMode("change"); setResult(null); setError(""); }} className="cta h-12 rounded-full font-bold text-white">{tx.change}</button>}
+          {canResched && !b.graceOpen && b.reschedulesLeft === 1 && <p className="-mt-1 text-center text-[12px] text-[#71717a]">{tx.onceHint}</p>}
+          {b.canChange && b.canCancel !== false && <button type="button" onClick={() => { setMode("cancel"); setResult(null); setError(""); }} className="h-12 rounded-full bg-[#f4f4f5] font-bold text-[#e8201c]">{tx.cancel}</button>}
         </div>
       )}
       {b.canChange && b.canCancel === false && b.paymentStatus === "paid" && <p className="mt-3 text-[13px] text-[#52525b]">{tx.paidCancelNote}</p>}
@@ -217,7 +243,7 @@ export default function CarWashManage({ token }: { token: string }) {
         </div>
       )}
 
-      {b.canChange && mode === "change" && (
+      {canResched && mode === "change" && (
         <div className="mt-6">
           <h2 className="mb-2.5 text-[15px] font-bold">{tx.pick}</h2>
           <div className="rounded-2xl bg-[#f4f4f5] p-3.5">
