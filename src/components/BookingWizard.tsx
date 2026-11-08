@@ -280,7 +280,7 @@ export default function BookingWizard({ config, wash }: { config: BookingConfig;
     try {
       const res = await fetch(`/api/car-wash/book?garageId=${config.id}`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ serviceId: washService.id, slot: slot.iso, customerName: name.trim(), customerPhone: parsePhone(phone), plateNumber: plate || undefined, vehicleMake: make || undefined, vehicleModel: model || undefined, lang: locale === "ar" ? "ar" : "en", verifyToken: verifyToken || undefined, payOnline: payOnline || undefined, acceptPolicy: payOnline && wash?.nonRefundable ? true : undefined, returnBase: payOnline ? window.location.origin : undefined }),
+        body: JSON.stringify({ serviceId: washService.id, slot: slot.iso, customerName: name.trim(), customerPhone: parsePhone(phone), plateNumber: plate || undefined, vehicleMake: make || undefined, vehicleModel: model || undefined, vehicleYear: year ? Number(year) : undefined, lang: locale === "ar" ? "ar" : "en", verifyToken: verifyToken || undefined, payOnline: payOnline || undefined, acceptPolicy: payOnline && wash?.nonRefundable ? true : undefined, returnBase: payOnline ? window.location.origin : undefined }),
       });
       const j = await res.json().catch(() => ({}));
       if (res.ok && j.paymentUrl) {
