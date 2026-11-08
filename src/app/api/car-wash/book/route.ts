@@ -9,7 +9,7 @@ export async function POST(req: Request) {
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   if (!body) return NextResponse.json({ error: "Invalid request" }, { status: 400 });
 
-  const allowed = ["customerName", "customerPhone", "plateNumber", "vehicleMake", "vehicleModel", "serviceId", "slot", "notes", "lang", "verifyToken", "payOnline", "returnBase", "acceptPolicy"];
+  const allowed = ["customerName", "customerPhone", "plateNumber", "vehicleMake", "vehicleModel", "vehicleYear", "serviceId", "slot", "notes", "lang", "verifyToken", "payOnline", "returnBase", "acceptPolicy"];
   const payload = Object.fromEntries(allowed.filter((k) => body[k] !== undefined).map((k) => [k, body[k]]));
   const res = await fetch(apiUrl(`/api/public/car-wash/${garageId}/book`), {
     method: "POST",
