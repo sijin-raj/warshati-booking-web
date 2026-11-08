@@ -66,14 +66,14 @@ const WASH_TEXT = {
     verifyBtn: "Send code", verifySent: "We sent a 6-digit code to your WhatsApp.", confirmCode: "Verify", verified: "Number verified",
     resend: "Resend code", verifyNeeded: "Verify your number to continue", manage: "Change or cancel booking", sending: "Booking…",
     failed: "Couldn't complete the booking. Please try again.", ref: "Booking no.",
-    payOnline: "Pay online now", payOnlineHint: "Card, mada or Apple Pay — secured by MyFatoorah", payAndConfirm: "Pay {amount} SAR & confirm", redirecting: "Taking you to payment…", holdNote: "Your time is held while you pay.", oneKind: "A car wash is booked on its own — other services are cleared.",
+    payOnline: "Pay online now", payOnlineHint: "Card, mada or Apple Pay — secured by MyFatoorah", payAndConfirm: "Pay {amount} SAR & confirm", redirecting: "Taking you to payment…", holdNote: "Your time is held while you pay.", termsLink: "Terms & policy", policyAgree: "I understand this booking is non-refundable. I can reschedule it once; if I miss the new time too, the amount is not refunded.", oneKind: "A car wash is booked on its own — other services are cleared.",
   },
   ar: {
     group: "غسيل السيارة", price: "السعر", vatNote: "يشمل {vat} ر.س ضريبة القيمة المضافة (15%)", inclVat: "شامل الضريبة", sr: "ر.س", total: "الإجمالي شامل ضريبة 15%", plateRequired: "رقم اللوحة مطلوب لحجز الغسيل",
     verifyBtn: "إرسال الرمز", verifySent: "أرسلنا رمزًا من 6 أرقام إلى واتساب.", confirmCode: "تحقق", verified: "تم التحقق من الرقم",
     resend: "إعادة إرسال الرمز", verifyNeeded: "تحقق من رقمك للمتابعة", manage: "تغيير الموعد أو الإلغاء", sending: "جارٍ الحجز…",
     failed: "تعذّر إكمال الحجز. حاول مرة أخرى.", ref: "رقم الحجز",
-    payOnline: "ادفع الآن عبر الإنترنت", payOnlineHint: "بطاقة أو مدى أو Apple Pay — بحماية MyFatoorah", payAndConfirm: "ادفع {amount} ر.س وأكّد الحجز", redirecting: "جارٍ تحويلك إلى الدفع…", holdNote: "موعدك محجوز أثناء الدفع.", oneKind: "يُحجز الغسيل بشكل منفصل — تمت إزالة الخدمات الأخرى.",
+    payOnline: "ادفع الآن عبر الإنترنت", payOnlineHint: "بطاقة أو مدى أو Apple Pay — بحماية MyFatoorah", payAndConfirm: "ادفع {amount} ر.س وأكّد الحجز", redirecting: "جارٍ تحويلك إلى الدفع…", holdNote: "موعدك محجوز أثناء الدفع.", termsLink: "الشروط والسياسة", policyAgree: "أفهم أن هذا الحجز غير قابل للاسترداد. يمكنني تغيير الموعد مرة واحدة، وإذا لم أحضر في الموعد الجديد فلن يُسترد المبلغ.", oneKind: "يُحجز الغسيل بشكل منفصل — تمت إزالة الخدمات الأخرى.",
   },
 } as const;
 
@@ -135,6 +135,7 @@ export default function BookingWizard({ config, wash }: { config: BookingConfig;
   const [phoneTouched, setPhoneTouched] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [agree, setAgree] = useState(false);
   const [bookingId, setBookingId] = useState<number | null>(null);
 
   const fields = config.form.fields;
@@ -242,7 +243,7 @@ export default function BookingWizard({ config, wash }: { config: BookingConfig;
   const washTotal = washService ? washService.price : 0;
   const canNext = step === 0
     ? carOk && (washMode || selected.length > 0)
-    : (!needsSchedule || !!slot) && detailsOk && (!needVerify || otp === "verified");
+    : (!needsSchedule || !!slot) && detailsOk && (!needVerify || otp === "verified") && (!(washMode && wash?.onlinePayment && wash?.nonRefundable) || agree);
 
   const dayLabel = (d: string, i: number) => {
     if (i === 0) return t("service.today");
@@ -279,7 +280,7 @@ export default function BookingWizard({ config, wash }: { config: BookingConfig;
     try {
       const res = await fetch(`/api/car-wash/book?garageId=${config.id}`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ serviceId: washService.id, slot: slot.iso, customerName: name.trim(), customerPhone: parsePhone(phone), plateNumber: plate || undefined, vehicleMake: make || undefined, vehicleModel: model || undefined, lang: locale === "ar" ? "ar" : "en", verifyToken: verifyToken || undefined, payOnline: payOnline || undefined, returnBase: payOnline ? window.location.origin : undefined }),
+        body: JSON.stringify({ serviceId: washService.id, slot: slot.iso, customerName: name.trim(), customerPhone: parsePhone(phone), plateNumber: plate || undefined, vehicleMake: make || undefined, vehicleModel: model || undefined, lang: locale === "ar" ? "ar" : "en", verifyToken: verifyToken || undefined, payOnline: payOnline || undefined, acceptPolicy: payOnline && wash?.nonRefundable ? true : undefined, returnBase: payOnline ? window.location.origin : undefined }),
       });
       const j = await res.json().catch(() => ({}));
       if (res.ok && j.paymentUrl) {
@@ -658,6 +659,12 @@ export default function BookingWizard({ config, wash }: { config: BookingConfig;
                     <p className="text-[12px] text-[#71717a]">{wt.payOnlineHint}</p>
                     <p className="mt-2 text-[12px] text-[#71717a]">{wt.holdNote}</p>
                   </div>
+                )}
+                {washService && wash?.onlinePayment && wash?.nonRefundable && (
+                    <label className="mt-3 flex cursor-pointer items-start gap-2.5 rounded-2xl bg-white p-4 text-[13px] leading-relaxed text-[#3f3f46]">
+                      <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} className="mt-0.5 h-5 w-5 shrink-0 accent-[#e8201c]" />
+                      <span>{wt.policyAgree} <a href="/terms" target="_blank" rel="noopener" className="font-bold text-[#e8201c] underline">{wt.termsLink}</a></span>
+                    </label>
                 )}
                 {error && <p role="alert" className="mt-3 text-[14px] text-[#e8201c]">{error}</p>}
               </Block>
