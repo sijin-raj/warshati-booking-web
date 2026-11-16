@@ -46,6 +46,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             __html: `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','GTM-FVTZ3FHG');`,
           }}
         />
+        {/* OpenAI ads pixel (base code) — on every page. The queue stub lets oaiq() calls made before the SDK finishes loading
+            (like the booking confirmation event) be replayed instead of throwing. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `!(function(w,d,s,u){if(w.oaiq)return;w.oaiq=function(){(w.oaiq.q=w.oaiq.q||[]).push(arguments)};var j=d.createElement(s);j.async=1;j.src=u;var f=d.getElementsByTagName(s)[0];f.parentNode.insertBefore(j,f)}(window,document,"script","https://bzrcdn.openai.com/sdk/oaiq.min.js"));oaiq('init',{pixelId:"Laifhnv5S1TcvJrHUVGiYq",debug:true});`,
+          }}
+        />
         <script
           dangerouslySetInnerHTML={{
             __html: `(function(){try{var k=${JSON.stringify(LOCALE_COOKIE)};var m=document.cookie.match(new RegExp('(?:^|; )'+k+'=([^;]*)'));var l=m?decodeURIComponent(m[1]):null;if(l!=='en'&&l!=='ar'){l=localStorage.getItem('lezof-locale');}if(l==='ar'||l==='en'){document.documentElement.lang=l;document.documentElement.dir=l==='ar'?'rtl':'ltr';}}catch(e){}})();`,

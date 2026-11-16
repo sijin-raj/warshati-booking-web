@@ -9,7 +9,7 @@ interface Booking {
   jobNumber: string; status: string; plateNumber: string | null; service: string; scheduledAt: string | null; durationMin: number;
   garageName: string; daysAhead: number; cancelWindowMin: number; canChange: boolean; reason: "status" | "too_late" | null;
   paymentStatus?: string; canCancel?: boolean;
-  canReschedule?: boolean; rescheduleReason?: "status" | "too_late" | "limit" | "forfeited" | null; graceOpen?: boolean; graceExpiresAt?: string | null; forfeited?: boolean; nonRefundable?: boolean; reschedulesLeft?: number;
+  canReschedule?: boolean; rescheduleReason?: "status" | "too_late" | "limit" | "forfeited" | null; graceOpen?: boolean; graceExpiresAt?: string | null; forfeited?: boolean; nonRefundable?: boolean; nonRefundablePolicy?: boolean; reschedulesLeft?: number;
   total?: number; onlinePayment?: boolean; payUrl?: string | null; payExpiresAt?: string | null;
 }
 interface Slot { time: string; iso: string; available: boolean; current: boolean }
@@ -29,6 +29,7 @@ const TEXT = {
     expired: "This booking expired because the payment wasn't completed. Please make a new booking.",
     paid: "Payment received", paidSub: (a: string) => `${a} SAR paid online. See you at your time!`, payDue: "Complete your payment to confirm this booking.", payNow: "Pay now", payUntil: (t: string) => `Your time is held until ${t}.`,
     nonRefundable: "Non-refundable booking: the amount paid is not refunded if you cancel or miss your time.",
+    nonRefundablePolicy: "Non-refundable policy: any amount paid for this booking is not refunded if you cancel or miss your time.",
     limitUsed: "You've already rescheduled this booking once, so it can't be changed again online. Please contact the garage.",
     missed: "We missed you at your booked time.", missedHint: "Choose a new time below. You can do this once — if you miss the new time too, the amount is non-refundable.",
     forfeited: "This booking was missed twice, so it can't be rescheduled. The amount paid is non-refundable.",
@@ -47,6 +48,7 @@ const TEXT = {
     expired: "انتهت صلاحية هذا الحجز لأن الدفع لم يكتمل. يرجى إجراء حجز جديد.",
     paid: "تم استلام الدفع", paidSub: (a: string) => `تم دفع ${a} ر.س عبر الإنترنت. نراك في موعدك!`, payDue: "أكمل الدفع لتأكيد هذا الحجز.", payNow: "ادفع الآن", payUntil: (t: string) => `موعدك محجوز حتى ${t}.`,
     nonRefundable: "الحجز غير قابل للاسترداد: لا يُسترد المبلغ المدفوع عند الإلغاء أو عدم الحضور في الموعد.",
+    nonRefundablePolicy: "سياسة عدم الاسترداد: لا يُسترد أي مبلغ يُدفع لهذا الحجز عند الإلغاء أو عدم الحضور في الموعد.",
     limitUsed: "لقد أعدت جدولة هذا الحجز مرة واحدة، ولا يمكن تغييره مرة أخرى عبر الإنترنت. يرجى التواصل مع الورشة.",
     missed: "لم نتمكن من استقبالك في موعد حجزك.", missedHint: "اختر موعدًا جديدًا أدناه. يمكنك ذلك مرة واحدة فقط — وإذا لم تحضر في الموعد الجديد أيضًا فلن يكون المبلغ قابلًا للاسترداد.",
     forfeited: "لم تحضر في موعدين، لذلك لا يمكن إعادة جدولة هذا الحجز. المبلغ المدفوع غير قابل للاسترداد.",
@@ -220,7 +222,7 @@ export default function CarWashManage({ token }: { token: string }) {
       {!note && !b.graceOpen && !canResched && b.status === "booked" && (
         <p className="mt-4 rounded-2xl bg-amber-50 p-4 text-[14px] text-amber-800">{b.rescheduleReason === "limit" ? tx.limitUsed : tx.tooLate(b.cancelWindowMin)}</p>
       )}
-      {b.nonRefundable && !closed && !b.forfeited && <p className="mt-4 rounded-2xl bg-[#f4f4f5] p-3.5 text-[13px] leading-relaxed text-[#52525b]">{tx.nonRefundable}</p>}
+      {(b.nonRefundable || b.nonRefundablePolicy) && !closed && !b.forfeited && <p className="mt-4 rounded-2xl bg-[#f4f4f5] p-3.5 text-[13px] leading-relaxed text-[#52525b]">{b.nonRefundable ? tx.nonRefundable : tx.nonRefundablePolicy}</p>}
 
       {(canResched || b.canChange) && mode === "view" && (
         <div className="mt-4 grid gap-2.5">

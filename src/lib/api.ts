@@ -38,6 +38,8 @@ export interface BookingConfig {
     submitLabel: string | null;
     fields: Record<string, FieldRule>;
   };
+  /** Promo carousel at the top of the page (designed images; the Arabic one is used when the page is in Arabic). */
+  banners?: { imageUrl: string; imageUrlAr: string | null; link: string | null }[];
 }
 
 export async function fetchBookingConfig(garageId: string): Promise<BookingConfig | null> {

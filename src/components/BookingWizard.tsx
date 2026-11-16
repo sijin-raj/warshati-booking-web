@@ -7,6 +7,10 @@ import { parsePhone } from "@/lib/phone";
 import { track, trackSignUp } from "@/lib/track";
 import { useI18n } from "@/i18n/provider";
 import LanguageSwitcher from "./LanguageSwitcher";
+import BannerCarousel from "./BannerCarousel";
+
+// Shown when the garage has not uploaded its own banners (Settings → Booking Form).
+const DEFAULT_BANNERS = [{ imageUrl: "/banners/winter-ready-en.webp", imageUrlAr: null, link: null }];
 
 interface Slot { time: string; iso: string; available: boolean }
 
@@ -87,6 +91,14 @@ function serviceIcon(name: string) {
   return Wrench;
 }
 
+/** A brand logo (served through this site) that falls back to a car icon when it can't load. */
+function BrandLogo({ logo }: { logo: string | null }) {
+  const [failed, setFailed] = useState(false);
+  if (!logo || failed) return <Car className="h-6 w-6" />;
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={`/api/car-logo?src=${encodeURIComponent(logo)}`} alt="" loading="lazy" onError={() => setFailed(true)} className="h-8 w-8 object-contain" />;
+}
+
 export default function BookingWizard({ config, wash }: { config: BookingConfig; wash?: CarWashInfo | null }) {
   const { t, locale, dir } = useI18n();
   const wt = WASH_TEXT[locale === "ar" ? "ar" : "en"];
@@ -137,6 +149,12 @@ export default function BookingWizard({ config, wash }: { config: BookingConfig;
   const [error, setError] = useState<string | null>(null);
   const [agree, setAgree] = useState(false);
   const [bookingId, setBookingId] = useState<number | null>(null);
+  // Ad conversion: fires once, only when a garage appointment booking has actually been saved.
+  useEffect(() => {
+    if (bookingId === null) return;
+    const w = window as unknown as { oaiq?: (...args: unknown[]) => void };
+    w.oaiq?.("measure", "appointment_scheduled", { type: "customer_action" });
+  }, [bookingId]);
 
   const fields = config.form.fields;
   const show = (k: string) => fields[k]?.visible !== false;
@@ -349,15 +367,19 @@ export default function BookingWizard({ config, wash }: { config: BookingConfig;
   const shell = (children: React.ReactNode) => (
     <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-4 pb-8 pt-4 sm:pt-6">
       <header className="mb-4 flex items-center justify-between sm:mb-6">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo.svg" alt="Lezof" className="h-6 w-auto sm:h-7" />
+        <a href="https://lezof.com" aria-label="Lezof" className="inline-flex">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.svg" alt="Lezof" className="h-6 w-auto sm:h-7" />
+        </a>
         <LanguageSwitcher />
       </header>
+      {/* Mobile only: on desktop the dark service panel beside the form already fills that role. */}
+      <BannerCarousel banners={config.banners?.length ? config.banners : DEFAULT_BANNERS} className="lg:hidden" />
       <div className="grid flex-1 content-start items-stretch gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
         <aside className="relative hidden overflow-hidden rounded-[28px] bg-[#111] shadow-[0_20px_50px_rgba(0,0,0,0.12)] lg:flex">
-          {/* Branch artwork with the service list baked in, same as book.lezof.com */}
+          {/* Desktop banner (the mobile carousel above the form is hidden at this width) */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/hero-services.webp" alt={config.name} width={644} height={888} className="block w-full object-cover object-[30%_bottom]" />
+          <img src="/banners/winter-ready-desktop.webp" alt={config.name} width={900} height={1650} className="block w-full object-cover object-center" />
         </aside>
         <div className="flex min-w-0 flex-col [&>*:first-child]:flex-1">{children}</div>
       </div>
@@ -448,7 +470,7 @@ export default function BookingWizard({ config, wash }: { config: BookingConfig;
                             <button key={m.make} type="button" title={m.make} aria-label={m.make} aria-pressed={make === m.make}
                               onClick={(e) => { pickMake(m.make); e.currentTarget.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" }); }}
                               className={`flex h-14 w-14 shrink-0 snap-center items-center justify-center rounded-2xl border-2 bg-[#f4f4f5] transition active:scale-95 ${make === m.make ? "border-[#e8201c] bg-white shadow-[0_6px_16px_rgba(232,32,28,0.18)]" : "border-transparent"}`}>
-                              {m.logo ? <img src={m.logo} alt="" loading="lazy" className="h-8 w-8 object-contain" /> : <Car className="h-6 w-6" />}
+                              <BrandLogo logo={m.logo} />
                             </button>
                           ))}
                     </div>
