@@ -11,6 +11,7 @@ import BannerCarousel from "./BannerCarousel";
 
 // Shown when the garage has not uploaded its own banners (Settings → Booking Form).
 const DEFAULT_BANNERS = [{ imageUrl: "/banners/winter-ready-en.webp", imageUrlAr: null, link: null }];
+const DEFAULT_DESKTOP_BANNERS = [{ imageUrl: null, imageUrlAr: null, desktopImageUrl: "/banners/winter-ready-desktop.webp", desktopImageUrlAr: null, link: null }];
 
 interface Slot { time: string; iso: string; available: boolean }
 
@@ -376,12 +377,11 @@ export default function BookingWizard({ config, wash }: { config: BookingConfig;
         <LanguageSwitcher />
       </header>
       {/* Mobile only: on desktop the dark service panel beside the form already fills that role. */}
-      <BannerCarousel banners={config.banners?.length ? config.banners : DEFAULT_BANNERS} className="lg:hidden" />
+      <BannerCarousel banners={config.banners?.some((b) => b.imageUrl) ? config.banners : DEFAULT_BANNERS} className="lg:hidden" />
       <div className="grid flex-1 content-start items-stretch gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
         <aside className="relative hidden overflow-hidden rounded-[28px] bg-[#111] shadow-[0_20px_50px_rgba(0,0,0,0.12)] lg:flex">
-          {/* Desktop banner (the mobile carousel above the form is hidden at this width) */}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/banners/winter-ready-desktop.webp" alt={config.name} width={900} height={1650} className="block w-full object-cover object-center" />
+          {/* Desktop slides (the mobile carousel above the form is hidden at this width); the default banner when the garage uploaded no desktop artwork */}
+          <BannerCarousel variant="desktop" banners={config.banners?.some((b) => b.desktopImageUrl) ? config.banners : DEFAULT_DESKTOP_BANNERS} />
         </aside>
         <div className="flex min-w-0 flex-col [&>*:first-child]:flex-1">{children}</div>
       </div>
