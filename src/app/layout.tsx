@@ -50,7 +50,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             (like the booking confirmation event) be replayed instead of throwing. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `!(function(w,d,s,u){if(w.oaiq)return;w.oaiq=function(){(w.oaiq.q=w.oaiq.q||[]).push(arguments)};var j=d.createElement(s);j.async=1;j.src=u;var f=d.getElementsByTagName(s)[0];f.parentNode.insertBefore(j,f)}(window,document,"script","https://bzrcdn.openai.com/sdk/oaiq.min.js"));oaiq('init',{pixelId:"Laifhnv5S1TcvJrHUVGiYq",debug:true});`,
+            __html: `!function(w,d,s,u){if(w.oaiq)return;var q=function(){q.q.push(arguments)};q.q=[];w.oaiq=q;var j=d.createElement(s);j.async=1;j.src=u;var f=d.getElementsByTagName(s)[0];f.parentNode.insertBefore(j,f);}(window,document,"script","https://bzrcdn.openai.com/sdk/oaiq.min.js");oaiq("init",{pixelId:"Laifhnv5S1TcVJrHUVGiYq",debug:true});`,
           }}
         />
         <script

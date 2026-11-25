@@ -7,6 +7,23 @@ export function track(event: string, params: Params = {}) {
   (window.dataLayer = window.dataLayer || []).push({ event, ...params });
 }
 
+/**
+ * OpenAI ads conversion for a confirmed booking. Pass `key` (unique per booking) wherever the same booking can be
+ * seen again, e.g. a reload of the payment return page, so it is only counted once in this browser.
+ */
+export function measureAppointment(key?: string) {
+  if (typeof window === "undefined") return;
+  if (key) {
+    const storageKey = `lezof-conversion:${key}`;
+    try {
+      if (window.localStorage.getItem(storageKey)) return;
+      window.localStorage.setItem(storageKey, "1");
+    } catch { /* storage blocked — still count the booking */ }
+  }
+  const w = window as unknown as { oaiq?: (...args: unknown[]) => void };
+  w.oaiq?.("measure", "appointment_scheduled", { type: "customer_action" });
+}
+
 async function sha256(value: string): Promise<string | undefined> {
   if (!value || typeof crypto === "undefined" || !crypto.subtle) return undefined;
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));

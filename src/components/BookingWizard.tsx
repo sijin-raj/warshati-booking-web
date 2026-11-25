@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Car, CalendarClock, Check, ChevronLeft, ChevronRight, Droplets, Phone, Search, Snowflake, Sparkles, Wrench, CircleDot, ShieldCheck, UserRound, MapPin, Clock } from "lucide-react";
 import type { BookingConfig, CarWashInfo } from "@/lib/api";
 import { parsePhone } from "@/lib/phone";
-import { track, trackSignUp } from "@/lib/track";
+import { measureAppointment, track, trackSignUp } from "@/lib/track";
 import { useI18n } from "@/i18n/provider";
 import LanguageSwitcher from "./LanguageSwitcher";
 import BannerCarousel from "./BannerCarousel";
@@ -149,12 +149,14 @@ export default function BookingWizard({ config, wash }: { config: BookingConfig;
   const [error, setError] = useState<string | null>(null);
   const [agree, setAgree] = useState(false);
   const [bookingId, setBookingId] = useState<number | null>(null);
-  // Ad conversion: fires once, only when a garage appointment booking has actually been saved.
+  // Ad conversion: fires once, only when a booking has actually been saved. A car wash paid online is not
+  // confirmed yet at this point, so it is counted on the manage page after payment.
   useEffect(() => {
-    if (bookingId === null) return;
-    const w = window as unknown as { oaiq?: (...args: unknown[]) => void };
-    w.oaiq?.("measure", "appointment_scheduled", { type: "customer_action" });
+    if (bookingId !== null) measureAppointment();
   }, [bookingId]);
+  useEffect(() => {
+    if (washDone) measureAppointment(washDone.manageToken ?? washDone.jobNumber);
+  }, [washDone]);
 
   const fields = config.form.fields;
   const show = (k: string) => fields[k]?.visible !== false;
