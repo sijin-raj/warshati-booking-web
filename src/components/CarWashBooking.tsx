@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { CalendarClock, Check, Droplets } from "lucide-react";
 import type { CarWashInfo } from "@/lib/api";
 import { parsePhone } from "@/lib/phone";
-import { track, trackSignUp } from "@/lib/track";
+import { measureAppointment, track, trackSignUp } from "@/lib/track";
 import { useI18n } from "@/i18n/provider";
 import LanguageSwitcher from "./LanguageSwitcher";
 
@@ -133,6 +133,7 @@ export default function CarWashBooking({ garageId, info }: { garageId: string; i
       }
       if (res.ok) {
         setDone(j);
+        measureAppointment(j.manageToken ?? j.jobNumber);
         void trackSignUp({ name, phone: parsePhone(phone) }, { booking_id: j.jobNumber ?? null, service: service?.name, booking_type: "car_wash" });
       }
       else {

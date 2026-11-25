@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { CalendarClock, Check, Droplets, X } from "lucide-react";
 import { useI18n } from "@/i18n/provider";
+import { measureAppointment } from "@/lib/track";
 import LanguageSwitcher from "./LanguageSwitcher";
 
 interface Booking {
@@ -73,12 +74,14 @@ export default function CarWashManage({ token }: { token: string }) {
   const [checking, setChecking] = useState(false);
   const [payOutcome, setPayOutcome] = useState<"paid" | "pending" | "failed" | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (): Promise<Booking | null> => {
     try {
       const res = await fetch(`/api/car-wash/p/manage/${token}`);
-      if (!res.ok) { setState("missing"); return; }
-      setB(await res.json()); setState("ready");
-    } catch { setState("missing"); }
+      if (!res.ok) { setState("missing"); return null; }
+      const booking = (await res.json()) as Booking;
+      setB(booking); setState("ready");
+      return booking;
+    } catch { setState("missing"); return null; }
   }, [token]);
   // Back from MyFatoorah (?paymentId=...): re-verify with the gateway, retrying briefly in case it is still settling.
   const verifyPayment = useCallback(async (paymentId?: string) => {
@@ -93,7 +96,9 @@ export default function CarWashManage({ token }: { token: string }) {
       await new Promise((r) => setTimeout(r, 2500));
     }
     setPayOutcome(outcome); setChecking(false);
-    await load();
+    const booking = await load();
+    // Ad conversion for online payments. A payment that arrived after the slot was released is not a booking.
+    if (outcome === "paid" && booking && booking.status !== "cancelled" && booking.status !== "expired") measureAppointment(token);
   }, [token, load]);
   useEffect(() => {
     load();
