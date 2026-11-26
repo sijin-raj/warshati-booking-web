@@ -48,8 +48,20 @@ export default function BannerCarousel({ banners: all, className = "", variant =
       <div className={`flex transition-transform duration-500 ease-out${desktop ? " h-full" : ""}`} dir="ltr" style={{ transform: `translateX(-${index * 100}%)` }}>
         {banners.map((b, i) => {
           const src = pick(b) as string;
-          // eslint-disable-next-line @next/next/no-img-element
-          const img = <img src={src} alt="" loading={i === 0 ? "eager" : "lazy"} draggable={false} className={`block w-full object-cover ${desktop ? "h-full" : "aspect-[1698/926]"}`} />;
+          // Desktop: the picture fills the whole panel edge to edge (the panel is shaped like the 926 x 1698 artwork, so almost nothing is cut).
+          // Mobile: the box is shaped like the 1698 x 926 artwork; a slide of another shape is shown whole over a blurred copy of itself.
+          // Works the same for a still image and an animated GIF.
+          const img = desktop ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={src} alt="" loading={i === 0 ? "eager" : "lazy"} draggable={false} className="block h-full w-full object-cover object-center" />
+          ) : (
+            <div className="relative aspect-[1698/926] w-full overflow-hidden bg-[#111]">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={src} alt="" aria-hidden draggable={false} className="absolute inset-0 h-full w-full scale-125 object-cover opacity-80 blur-2xl" />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={src} alt="" loading={i === 0 ? "eager" : "lazy"} draggable={false} className="relative block h-full w-full object-contain" />
+            </div>
+          );
           return (
             <div key={i} className={`w-full shrink-0 ${desktop ? "h-full" : ""}`} aria-hidden={i !== index}>
               {b.link ? (
