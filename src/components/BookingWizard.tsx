@@ -378,7 +378,7 @@ export default function BookingWizard({ config, wash }: { config: BookingConfig;
       </header>
       {/* Mobile only: on desktop the dark service panel beside the form already fills that role. */}
       <BannerCarousel banners={config.banners?.some((b) => b.imageUrl) ? config.banners : DEFAULT_BANNERS} className="lg:hidden" />
-      <div className="grid flex-1 content-start items-stretch gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
+      <div className="grid flex-1 content-start items-stretch gap-5 lg:grid-cols-2">
         <aside className="relative hidden overflow-hidden rounded-[28px] bg-[#111] shadow-[0_20px_50px_rgba(0,0,0,0.12)] lg:flex">
           {/* Desktop slides (the mobile carousel above the form is hidden at this width); the default banner when the garage uploaded no desktop artwork */}
           <BannerCarousel variant="desktop" banners={config.banners?.some((b) => b.desktopImageUrl) ? config.banners : DEFAULT_DESKTOP_BANNERS} />
