@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CalendarClock, Check, Droplets, X } from "lucide-react";
+import { CalendarClock, Check, X } from "lucide-react";
+import CarWashMark from "./CarWashMark";
 import { useI18n } from "@/i18n/provider";
 import { measureAppointment } from "@/lib/track";
 import LanguageSwitcher from "./LanguageSwitcher";
@@ -130,7 +131,7 @@ export default function CarWashManage({ token }: { token: string }) {
   const shell = (children: React.ReactNode) => (
     <div dir={dir} className="mx-auto max-w-md px-4 pb-10 pt-6">
       <div className="mb-5 flex items-center justify-between gap-3">
-        <h1 className="flex items-center gap-2 text-xl font-extrabold"><Droplets className="h-6 w-6 text-[#e8201c]" />{tx.title}</h1>
+        <h1 className="flex items-center gap-2 text-xl font-extrabold"><CarWashMark className="h-9 w-9" />{tx.title}</h1>
         <LanguageSwitcher />
       </div>
       {children}

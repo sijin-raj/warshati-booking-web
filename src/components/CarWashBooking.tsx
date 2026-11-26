@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CalendarClock, Check, Droplets } from "lucide-react";
+import { CalendarClock, Check } from "lucide-react";
+import CarWashMark from "./CarWashMark";
 import type { CarWashInfo } from "@/lib/api";
 import { parsePhone } from "@/lib/phone";
 import { measureAppointment, track, trackSignUp } from "@/lib/track";
@@ -164,7 +165,7 @@ export default function CarWashBooking({ garageId, info }: { garageId: string; i
   return (
     <div dir={dir} className="mx-auto max-w-md px-4 pb-10 pt-6">
       <div className="mb-5 flex items-center justify-between gap-3">
-        <h1 className="flex items-center gap-2 text-xl font-extrabold"><Droplets className="h-6 w-6 text-[#e8201c]" />{tx.title}</h1>
+        <h1 className="flex items-center gap-2 text-xl font-extrabold"><CarWashMark className="h-9 w-9" />{tx.title}</h1>
         <LanguageSwitcher />
       </div>
 
