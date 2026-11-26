@@ -3,15 +3,21 @@
 import { useEffect, useRef, useState } from "react";
 import { useI18n } from "@/i18n/provider";
 
-interface Banner { imageUrl: string; imageUrlAr: string | null; link: string | null }
+interface Banner { imageUrl: string | null; imageUrlAr: string | null; desktopImageUrl?: string | null; desktopImageUrlAr?: string | null; link: string | null }
 
 /** Promo carousel at the top of the booking page: auto-advances, swipes, and pauses while a finger or the mouse is on it. */
-export default function BannerCarousel({ banners, className = "" }: { banners: Banner[]; className?: string }) {
+export default function BannerCarousel({ banners: all, className = "", variant = "mobile" }: { banners: Banner[]; className?: string; variant?: "mobile" | "desktop" }) {
   const { locale, dir } = useI18n();
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
   const start = useRef<number | null>(null);
   const moved = useRef(false);
+  const desktop = variant === "desktop";
+  // Each slide shows the artwork made for this screen; a slide with none for it is skipped.
+  const pick = (b: Banner) => (desktop
+    ? (locale === "ar" && b.desktopImageUrlAr ? b.desktopImageUrlAr : b.desktopImageUrl)
+    : (locale === "ar" && b.imageUrlAr ? b.imageUrlAr : b.imageUrl));
+  const banners = all.filter((b) => pick(b));
   const count = banners.length;
 
   useEffect(() => {
@@ -28,7 +34,7 @@ export default function BannerCarousel({ banners, className = "" }: { banners: B
   return (
     <section
       aria-roledescription="carousel"
-      className={`relative mb-4 overflow-hidden rounded-[28px] bg-[#111] shadow-[0_14px_34px_rgba(0,0,0,0.14)] sm:mb-6 ${className}`}
+      className={`relative overflow-hidden rounded-[28px] bg-[#111] ${desktop ? "h-full w-full" : "mb-4 shadow-[0_14px_34px_rgba(0,0,0,0.14)] sm:mb-6"} ${className}`}
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
       onTouchStart={(e) => { start.current = e.touches[0].clientX; moved.current = false; setPaused(true); }}
@@ -39,15 +45,15 @@ export default function BannerCarousel({ banners, className = "" }: { banners: B
         if (Math.abs(dx) > 40) { moved.current = true; go(index + (dx < 0 ? step : -step)); }
       }}
     >
-      <div className="flex transition-transform duration-500 ease-out" dir="ltr" style={{ transform: `translateX(-${index * 100}%)` }}>
+      <div className={`flex transition-transform duration-500 ease-out${desktop ? " h-full" : ""}`} dir="ltr" style={{ transform: `translateX(-${index * 100}%)` }}>
         {banners.map((b, i) => {
-          const src = locale === "ar" && b.imageUrlAr ? b.imageUrlAr : b.imageUrl;
+          const src = pick(b) as string;
           // eslint-disable-next-line @next/next/no-img-element
-          const img = <img src={src} alt="" loading={i === 0 ? "eager" : "lazy"} draggable={false} className="block aspect-[2.45/1] w-full object-cover" />;
+          const img = <img src={src} alt="" loading={i === 0 ? "eager" : "lazy"} draggable={false} className={`block w-full object-cover ${desktop ? "h-full" : "aspect-[1698/926]"}`} />;
           return (
-            <div key={i} className="w-full shrink-0" aria-hidden={i !== index}>
+            <div key={i} className={`w-full shrink-0 ${desktop ? "h-full" : ""}`} aria-hidden={i !== index}>
               {b.link ? (
-                <a href={b.link} target="_blank" rel="noopener noreferrer" onClick={(e) => { if (moved.current) e.preventDefault(); }}>{img}</a>
+                <a href={b.link} className={desktop ? "block h-full" : undefined} target="_blank" rel="noopener noreferrer" onClick={(e) => { if (moved.current) e.preventDefault(); }}>{img}</a>
               ) : img}
             </div>
           );
