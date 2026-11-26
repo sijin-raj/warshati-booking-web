@@ -8,6 +8,7 @@ import { measureAppointment, track, trackSignUp } from "@/lib/track";
 import { useI18n } from "@/i18n/provider";
 import LanguageSwitcher from "./LanguageSwitcher";
 import BannerCarousel from "./BannerCarousel";
+import CarWashMark from "./CarWashMark";
 
 // Shown when the garage has not uploaded its own banners (Settings → Booking Form).
 const DEFAULT_BANNERS = [{ imageUrl: "/banners/winter-ready-en.webp", imageUrlAr: null, link: null }];
@@ -90,6 +91,17 @@ function serviceIcon(name: string) {
   if (/tire|tyre|wheel|rim/.test(n)) return CircleDot;
   if (/ppf|tint|protect/.test(n)) return ShieldCheck;
   return Wrench;
+}
+
+/**
+ * A service's own icon, drawn the same size every time: always shown whole (never cropped) and centred in the same square tile, so
+ * icons of any shape (square, wide, tall) end up with a matching visual size.
+ */
+function ServiceImg({ src }: { src: string }) {
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={src} alt="" loading="lazy" decoding="async" className="h-10 w-10 rounded-xl bg-[#f1f1f2] object-contain object-center p-1" />
+  );
 }
 
 /** A brand logo (served through this site) that falls back to a car icon when it can't load. */
@@ -537,8 +549,7 @@ export default function BookingWizard({ config, wash }: { config: BookingConfig;
                           {s.imageUrl ? (
                             // The garage's own service icon (Settings → Booking Form); a check badge marks the selection.
                             <span className="relative h-10 w-10 shrink-0">
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img src={s.imageUrl} alt="" loading="lazy" className="h-10 w-10 rounded-xl bg-[#f1f1f2] object-contain p-2" />
+                              <ServiceImg src={s.imageUrl} />
                               {on && <span className="cta absolute -end-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full text-white ring-2 ring-white"><Check className="h-2.5 w-2.5" /></span>}
                             </span>
                           ) : (
@@ -557,7 +568,7 @@ export default function BookingWizard({ config, wash }: { config: BookingConfig;
                 </ul>
                 {washFiltered.length > 0 && (
                   <>
-                    <div className="mb-2 mt-4 flex items-center gap-2 text-[12px] font-bold uppercase tracking-wide text-[#52525b]"><Droplets className="h-3.5 w-3.5 text-[#e8201c]" />{wt.group}</div>
+                    <div className="mb-2 mt-4 flex items-center gap-2 text-[12px] font-bold uppercase tracking-wide text-[#52525b]"><CarWashMark className="h-5 w-5 rounded-md" />{wt.group}</div>
                     <ul className="grid grid-cols-2 gap-2.5">
                       {washFiltered.map((s) => {
                         const on = washId === s.id;
@@ -566,8 +577,9 @@ export default function BookingWizard({ config, wash }: { config: BookingConfig;
                             <button type="button" aria-pressed={on}
                               onClick={() => { setSelected([]); setWashId(on ? null : s.id); }}
                               className={`flex min-h-16 w-full items-center gap-3 rounded-2xl border-2 bg-white p-3 text-start transition active:scale-[0.98] ${on ? "border-[#e8201c] shadow-[0_8px_20px_rgba(232,32,28,0.15)]" : "border-transparent"}`}>
-                              <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${on ? "cta text-white" : "bg-[#f1f1f2] text-[#3f3f46]"}`}>
-                                {on ? <Check className="h-4 w-4" /> : <Droplets className="h-4 w-4" />}
+                              <span className="relative h-10 w-10 shrink-0">
+                                <CarWashMark className="h-10 w-10" />
+                                {on && <span className="cta absolute -end-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full text-white ring-2 ring-white"><Check className="h-2.5 w-2.5" /></span>}
                               </span>
                               <span className="min-w-0">
                                 <span className="block text-[13px] font-bold leading-tight">{svcName(s)}</span>
